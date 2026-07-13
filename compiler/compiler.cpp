@@ -2,16 +2,14 @@
 
 #include <iostream>
 
-#include "fileIO.hpp"
-#include "stringTools.hpp"
+#include "parser.hpp"
 
 namespace bsl {
 
-std::string compile(const std::string& in) {
-    auto s = readFileAsString(in);
-    auto lines = split(s, '\n', true);
+std::string compile(const std::string& in, size_t indent, bool allowTabs) {
+    auto prog = parse(in, indent, allowTabs);
 
-    return s;
+    return "";
 }
 
 }  // namespace bsl

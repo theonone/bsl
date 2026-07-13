@@ -4,6 +4,7 @@
 
 #include "compiler/compiler.hpp"
 #include "compiler/fileIO.hpp"
+#include "compiler/stringTools.hpp"
 
 int main(int argc, char** argv) {
     if (argc < 2) {
@@ -18,13 +19,16 @@ int main(int argc, char** argv) {
     bool assemble = true;
     bool link = true;
     int outIndex = -1;
+    size_t indent = 4;
+    bool tabs = true;
 
     if (args[0] == "--help") {
         std::cout
             << "BSL Compiler (github.com/theonone/bsl)\n\nUsage: bslc {.bsl file} "
                "{options}\n\nAvailable options:\n-S - Compile only, do not assemble or link\n-c - "
                "Compile and assemble, do not link\n-o {file} - write the output into the specified "
-               "file"
+               "file\n-notabs - disallow usage of tabs for indentation\n-indent=X - set code "
+               "indentation unit to X spaces"
             << std::endl;
         return 0;
     }
@@ -55,6 +59,27 @@ int main(int argc, char** argv) {
                 return 0;
             }
             outIndex = ++i;
+        } else if (args[i] == "-notabs") {
+            tabs = false;
+
+        } else if (bsl::startswith(args[i], "-indent=")) {
+            try {
+                std::string strIndent = args[i].substr(8);
+                indent = std::stoul(strIndent);
+                if (indent == 0) {
+                    std::cout << "Invalid options: invalid indent value (must be unsigned long > 0)"
+                              << std::endl;
+                    return 0;
+                }
+            } catch (const std::invalid_argument&) {
+                std::cout << "Invalid options: invalid indent value (must be unsigned long > 0)"
+                          << std::endl;
+                return 0;
+            } catch (const std::out_of_range&) {
+                std::cout << "Invalid options: invalid indent value (must be unsigned long > 0)"
+                          << std::endl;
+                return 0;
+            }
         } else {
             std::cout << "Invalid options: Unknown option \"" + args[i] << "\"" << std::endl;
             return 0;
@@ -63,7 +88,7 @@ int main(int argc, char** argv) {
 
     std::string fname = args[0].substr(0, args[0].length() - 4);
 
-    std::string compiled = bsl::compile(args[0]);
+    std::string compiled = bsl::compile(args[0], indent, tabs);
 
     if (!assemble) {
         bsl::writeToFile(outIndex == -1 ? fname + ".asm" : args[outIndex], compiled);
