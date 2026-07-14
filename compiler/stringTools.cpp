@@ -49,22 +49,4 @@ bool startswith(const std::string& s, const std::string& prefix) {
     return true;
 }
 
-ssize_t scopeDepth(const std::string& line, size_t indentSize, bool allowTabs) {
-    size_t spaces = 0;
-    for (size_t i = 0; i < line.size(); ++i) {
-        if (line[i] == ' ') {
-            ++spaces;
-        } else if (line[i] == '\t') {
-            if (!allowTabs)
-                return -1;
-            spaces += indentSize;
-        } else {
-            break;
-        }
-    }
-    if (spaces % indentSize != 0)
-        return -2;
-    return spaces / indentSize;
-}
-
 }  // namespace bsl

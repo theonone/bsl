@@ -10,8 +10,10 @@ namespace bsl {
 
 struct Instruction {
     std::string inst;
-    std::vector<std::string> operands;
+    std::vector<std::string> args;
     std::optional<std::string> attachedScope;  // with ifs, fors, and funcs
+    size_t depth;
+    size_t lineNumber;
 };
 
 struct Decl {
@@ -30,9 +32,26 @@ struct ProgramData {
     std::map<std::string, Scope> scopes;
 };
 
-ProgramData parse(const std::string& filename, size_t indent, bool allowTabs);
+class BSLParser {
+   private:
+    std::vector<std::string> _lines;
+    ProgramData _pdata;
+    std::string _filename;
+    size_t _indent;
+    bool _allowTabs;
+    bool _parsed = false;
 
-void processScope(const std::vector<std::string>& lines, ProgramData& data, size_t atLine,
-                  size_t indent, bool allowTabs);
+    void _validateName(const std::string& name, size_t lineNum);
+
+    Instruction _parseInstruction(size_t lineNumber);
+
+    void _processScope(size_t lineNumber);
+
+    size_t _scopeDepth(size_t lineNumber);
+
+   public:
+    BSLParser(const std::string& filename, size_t indent, bool allowTabs);
+    ProgramData parse();
+};
 
 }  // namespace bsl

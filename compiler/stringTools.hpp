@@ -13,5 +13,4 @@ std::string removeAfterSuffix(const std::string& s, const std::string& suff);
 
 bool startswith(const std::string& s, const std::string& prefix);
 
-ssize_t scopeDepth(const std::string& line, size_t indentSize, bool allowTabs);
 }  // namespace bsl

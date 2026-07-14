@@ -7,7 +7,8 @@
 namespace bsl {
 
 std::string compile(const std::string& in, size_t indent, bool allowTabs) {
-    auto prog = parse(in, indent, allowTabs);
+    auto parser = BSLParser(in, indent, allowTabs);
+    auto prog = parser.parse();
 
     return "";
 }
