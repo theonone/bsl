@@ -9,14 +9,18 @@ class X86_64Translator {
     std::string _src;
     std::string _asm;
     bool _translated = false;
-    std::string _secData;  // section .data
-    std::string _secText;  // section .text
+    std::string _secData;
+    std::string _secText;
     bool _usesMalloc = false;
     bool _usesFree = false;
 
-    // assumes the parser processed decls
+    // assumes the parser has already processed decls
     void _makeSecData();
     void _makeSecText();
+
+    void _makeLabel(const std::string& scopeName);
+
+    std::string _translateInstruction(const Instruction& inst);
 
    public:
     X86_64Translator(const ProgramData& pdata, const std::string& srcFilename);

@@ -2,6 +2,7 @@
 
 #include "errors.hpp"
 #include "helpers.hpp"
+#include "instructions.hpp"
 
 namespace bsl {
 
@@ -16,6 +17,34 @@ void X86_64Translator::_makeSecText() {
     if (_pdata.scopes.find("p_main") == _pdata.scopes.end()) {
         throw CodeError("Procedure \"main\" not found", _src, -1);
     }
+
+    for (const auto& p : _pdata.scopes) {
+        _makeLabel(p.first);
+    }
+}
+
+void X86_64Translator::_makeLabel(const std::string& scopeName) {
+    const Scope& scope = _pdata.scopes[scopeName];
+    std::string label = scopeName + ":\n";
+    for (const Instruction& inst : scope.instructions) {
+        label += _translateInstruction(inst) + '\n';
+    }
+
+    _secText += label;
+}
+
+std::string X86_64Translator::_translateInstruction(const Instruction& inst) {
+    InstContext ctx = InstContext(inst.args, inst.attachedScope, inst.depth, inst.lineNumber,
+                                  &_usesMalloc, &_usesFree, _src, _pdata.decls);
+    std::string translation;
+    if (inst.inst == "add") {
+        translation = bsl::add(ctx);
+    } else if (inst.inst == "sub") {
+        translation = bsl::sub(ctx);
+    } else {
+        ctx.throwErr("Unrecognized instruction - " + inst.inst);
+    }
+    return translation;
 }
 
 X86_64Translator::X86_64Translator(const ProgramData& pdata, const std::string& srcFilename)
@@ -44,7 +73,7 @@ std::string X86_64Translator::translate() {
         "_start:\n"
         "    push rbp\n"
         "    mov rbp, rsp\n"
-        "    call main\n"
+        "    call p_main\n"
         "    mov rsp, rbp\n"
         "    pop rbp\n"
         "    mov rax, 60\n"
