@@ -2,6 +2,7 @@
 
 #include <iostream>
 
+#include "codegen.hpp"
 #include "parser.hpp"
 
 namespace bsl {
@@ -37,8 +38,8 @@ std::string compile(const std::string& in, size_t indent, bool allowTabs) {
     auto parser = BSLParser(in, indent, allowTabs);
     auto prog = parser.parse();
     printPdata(prog);
-
-    return "";
+    auto translator = X86_64Translator(prog, in);
+    return translator.translate();
 }
 
 }  // namespace bsl

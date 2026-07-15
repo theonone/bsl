@@ -20,6 +20,7 @@ struct Decl {
     std::string name;
     std::string value;
     std::string type;
+    size_t line;
 };
 
 struct Scope {

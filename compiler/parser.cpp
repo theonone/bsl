@@ -60,12 +60,6 @@ void BSLParser::_validateName(const std::string& name, size_t lineNum) {
     if (((name[0] >= 48) && (name[0] <= 57))) {
         throw CodeError("Names cannot start with a number", _filename, lineNum + 1);
     }
-
-    if (startswith(name, _bslcPrefix))
-        throw CodeError('\"' + name + "\" contains the compiler prefix (" + _bslcPrefix +
-                            "). Please, pick "
-                            "another name.",
-                        _filename, lineNum + 1);
 }
 
 void BSLParser::_validateType(const std::string& type, size_t lineNum) {
@@ -110,10 +104,10 @@ std::string BSLParser::_parseValue(const std::string& val, size_t lineNum) {
     }
 
     // else - reference to another decl
-    if (!_pdata.decls.contains(val)) {
+    if (!_pdata.decls.contains("d_" + val)) {
         throw CodeError("No declaration named \"" + val + "\"", _filename, lineNum + 1);
     }
-    return _pdata.decls[val].value;
+    return _pdata.decls["d_" + val].value;
 }
 
 Instruction BSLParser::_parseInstruction(size_t lineNumber) {
@@ -162,9 +156,10 @@ void BSLParser::_addDecl(Instruction inst) {
         throw CodeError("Declarations must have strictly 3 arguments: name, type, value", _filename,
                         inst.lineNumber + 1);
     _validateName(inst.args[0], inst.lineNumber);
-    _pdata.decls[inst.args[0]] = {.name = inst.args[0], .type = inst.args[1]};
+    std::string declName = "d_" + inst.args[0];
+    _pdata.decls[declName] = {.name = declName, .type = inst.args[1], .line = inst.lineNumber};
     _validateType(inst.args[1], inst.lineNumber);
-    _pdata.decls[inst.args[0]].value = _parseValue(inst.args[2], inst.lineNumber);
+    _pdata.decls[declName].value = _parseValue(inst.args[2], inst.lineNumber);
 }
 
 ProgramData BSLParser::parse() {
@@ -199,7 +194,7 @@ size_t BSLParser::_processScope(size_t lineNumber, Instruction inst) {
             throw CodeError("Procedure declarations need strictly one argument - name", _filename,
                             lineNumber + 1);
 
-        scopeName = inst.args[0];
+        scopeName = "p_" + inst.args[0];
     }
     if (inst.inst == "if") {
         scopeName = _bslcPrefix + "if_" + std::to_string(_ifCount++);
