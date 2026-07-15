@@ -1,6 +1,6 @@
 #include "parser.hpp"
 
-#include <iostream>
+// #include <iostream>
 #include <stdexcept>
 
 #include "errors.hpp"
@@ -157,6 +157,16 @@ Instruction BSLParser::_parseInstruction(size_t lineNumber) {
     return inst;
 }
 
+void BSLParser::_addDecl(Instruction inst) {
+    if (inst.args.size() != 3)
+        throw CodeError("Declarations must have strictly 3 arguments: name, type, value", _filename,
+                        inst.lineNumber + 1);
+    _validateName(inst.args[0], inst.lineNumber);
+    _pdata.decls[inst.args[0]] = {.name = inst.args[0], .type = inst.args[1]};
+    _validateType(inst.args[1], inst.lineNumber);
+    _pdata.decls[inst.args[0]].value = _parseValue(inst.args[2], inst.lineNumber);
+}
+
 ProgramData BSLParser::parse() {
     if (_parsed)
         return _pdata;
@@ -164,18 +174,10 @@ ProgramData BSLParser::parse() {
     // global scope
     for (size_t i = 0; i < _lines.size(); ++i) {
         auto line = _parseInstruction(i);
-        std::cout << line.inst << std::endl;
         if (line.inst == "") {
             continue;
         } else if (line.inst == "decl") {
-            if (line.args.size() != 3)
-                throw CodeError("Declarations must have strictly 3 arguments: name, type, value",
-                                _filename, i + 1);
-            _validateName(line.args[0], i);
-            _pdata.decls[line.args[0]] = {.name = line.args[0], .type = line.args[1]};
-            _validateType(line.args[1], i);
-            _pdata.decls[line.args[0]].value = _parseValue(line.args[2], i);
-
+            _addDecl(line);
         } else if (line.inst == "proc") {
             i = _processScope(i, line) - 1;
         } else {
@@ -207,7 +209,6 @@ size_t BSLParser::_processScope(size_t lineNumber, Instruction inst) {
         scopeName = _bslcPrefix + "loop_" + std::to_string(_loopCount++);
     }
 
-    std::cout << "processing scope " << scopeName << std::endl;
     _pdata.scopes[scopeName] = {.name = scopeName, .depth = inst.depth};
 
     auto& scope = _pdata.scopes[scopeName];
@@ -222,13 +223,10 @@ size_t BSLParser::_processScope(size_t lineNumber, Instruction inst) {
         // "this" scope ends when we encounter a line that has a lesser or equal indentation
 
         if (line.depth <= scope.depth) {
-            std::cout << "finishing processing scope " << scopeName << ", returning to line "
-                      << i + 1 << std::endl;
             return i;
         }
 
         if (line.inst == "proc") {
-            std::cout << "current scope - " << scopeName << std::endl;
             throw CodeError("Procedure declarations can only be top-level", _filename, i + 1);
         } else if (line.inst == "if") {
             line.attachedScope = _bslcPrefix + "if_" + std::to_string(_ifCount);
@@ -236,6 +234,9 @@ size_t BSLParser::_processScope(size_t lineNumber, Instruction inst) {
         } else if (line.inst == "loop") {
             line.attachedScope = _bslcPrefix + "loop_" + std::to_string(_loopCount);
             i = _processScope(i, line) - 1;
+        } else if (line.inst == "decl") {
+            _addDecl(line);
+            continue;
         }
 
         scope.instructions.push_back(line);

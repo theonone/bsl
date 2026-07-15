@@ -50,6 +50,8 @@ class BSLParser {
     std::string _parseValue(const std::string& val, size_t lineNum);
     Instruction _parseInstruction(size_t lineNumber);
 
+    void _addDecl(Instruction inst);
+
     // returns the lineNumber to continue from
     size_t _processScope(size_t lineNumber, Instruction inst);
 
