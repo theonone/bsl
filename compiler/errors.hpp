@@ -3,6 +3,8 @@
 #include <exception>
 #include <string>
 
+namespace bsl {
+
 class CodeError : public std::exception {
    private:
     std::string message;
@@ -20,3 +22,5 @@ class CodeError : public std::exception {
     // Override what() to return the error message
     const char* what() const noexcept override;
 };
+
+}  // namespace bsl

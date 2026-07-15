@@ -49,4 +49,19 @@ bool startswith(const std::string& s, const std::string& prefix) {
     return true;
 }
 
+bool isNumber(const std::string& s) {
+    if (s.empty())
+        return false;
+    size_t i = 0;
+    if (s[0] == '-')
+        ++i;
+
+    for (; i < s.size(); ++i) {
+        if (s[i] < 48 || s[i] > 57)
+            return false;
+    }
+
+    return true;
+}
+
 }  // namespace bsl

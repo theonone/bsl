@@ -25,6 +25,7 @@ struct Decl {
 struct Scope {
     std::string name;
     std::vector<Instruction> instructions;
+    size_t depth;
 };
 
 struct ProgramData {
@@ -40,12 +41,17 @@ class BSLParser {
     size_t _indent;
     bool _allowTabs;
     bool _parsed = false;
+    size_t _ifCount = 0;
+    size_t _loopCount = 0;
+    const std::string _bslcPrefix = "L_bslc_";
 
     void _validateName(const std::string& name, size_t lineNum);
-
+    void _validateType(const std::string& type, size_t lineNum);
+    std::string _parseValue(const std::string& val, size_t lineNum);
     Instruction _parseInstruction(size_t lineNumber);
 
-    void _processScope(size_t lineNumber);
+    // returns the lineNumber to continue from
+    size_t _processScope(size_t lineNumber, Instruction inst);
 
     size_t _scopeDepth(size_t lineNumber);
 

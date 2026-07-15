@@ -3,6 +3,7 @@
 #include <vector>
 
 #include "compiler/compiler.hpp"
+#include "compiler/errors.hpp"
 #include "compiler/fileIO.hpp"
 #include "compiler/stringTools.hpp"
 
@@ -87,8 +88,12 @@ int main(int argc, char** argv) {
     }
 
     std::string fname = args[0].substr(0, args[0].length() - 4);
-
-    std::string compiled = bsl::compile(args[0], indent, tabs);
+    std::string compiled;
+    try {
+        compiled = bsl::compile(args[0], indent, tabs);
+    } catch (const bsl::CodeError& err) {
+        std::cout << "Compilation failed!\n" << err.what() << std::endl;
+    }
 
     if (!assemble) {
         bsl::writeToFile(outIndex == -1 ? fname + ".asm" : args[outIndex], compiled);

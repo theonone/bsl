@@ -13,4 +13,6 @@ std::string removeAfterSuffix(const std::string& s, const std::string& suff);
 
 bool startswith(const std::string& s, const std::string& prefix);
 
+bool isNumber(const std::string& s);
+
 }  // namespace bsl
