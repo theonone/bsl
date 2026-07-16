@@ -15,4 +15,6 @@ bool startswith(const std::string& s, const std::string& prefix);
 
 bool isNumber(const std::string& s);
 
+std::string join(const std::vector<std::string>& strs, const std::string& between);
+
 }  // namespace bsl

@@ -25,22 +25,29 @@ void X86_64Translator::_makeSecText() {
 
 void X86_64Translator::_makeLabel(const std::string& scopeName) {
     const Scope& scope = _pdata.scopes[scopeName];
-    std::string label = scopeName + ":\n";
+    CodeLines label("  ");
+    label.string = scopeName + ":\n";
     for (const Instruction& inst : scope.instructions) {
-        label += _translateInstruction(inst) + '\n';
+        label += _translateInstruction(inst);
     }
-
-    _secText += label;
+    label += "ret";
+    _secText += label.string;
 }
 
 std::string X86_64Translator::_translateInstruction(const Instruction& inst) {
     InstContext ctx = InstContext(inst.args, inst.attachedScope, inst.depth, inst.lineNumber,
-                                  &_usesMalloc, &_usesFree, _src, _pdata.decls);
+                                  &_usesMalloc, &_usesFree, _src, _pdata.decls, _pdata.scopes);
     std::string translation;
     if (inst.inst == "add") {
         translation = bsl::add(ctx);
     } else if (inst.inst == "sub") {
         translation = bsl::sub(ctx);
+    } else if (inst.inst == "asg") {
+        translation = bsl::asg(ctx);
+    } else if (inst.inst == "exit") {
+        translation = bsl::exit_prog(ctx);
+    } else if (inst.inst == "call") {
+        translation = bsl::call(ctx);
     } else {
         ctx.throwErr("Unrecognized instruction - " + inst.inst);
     }
@@ -67,18 +74,18 @@ std::string X86_64Translator::translate() {
     _asm += _secData;
     _asm +=
         "section .text\n"
-        "    global _start\n";
+        "  global _start\n";
     _asm += _secText;
     _asm +=
         "_start:\n"
-        "    push rbp\n"
-        "    mov rbp, rsp\n"
-        "    call p_main\n"
-        "    mov rsp, rbp\n"
-        "    pop rbp\n"
-        "    mov rax, 60\n"
-        "    xor rdi, rdi\n"
-        "    syscall";
+        "  push rbp\n"
+        "  mov rbp, rsp\n"
+        "  call p_main\n"
+        "  mov rsp, rbp\n"
+        "  pop rbp\n"
+        "  mov rax, 60\n"
+        "  xor rdi, rdi\n"
+        "  syscall";
 
     _translated = true;
     return _asm;

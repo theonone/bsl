@@ -64,4 +64,15 @@ bool isNumber(const std::string& s) {
     return true;
 }
 
+std::string join(const std::vector<std::string>& strs, const std::string& between) {
+    std::string res;
+    for (size_t i = 0; i < strs.size(); ++i) {
+        if (i != 0) {
+            res += between;
+        }
+        res += strs[i];
+    }
+    return res;
+}
+
 }  // namespace bsl

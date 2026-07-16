@@ -19,14 +19,29 @@ struct InstContext {
     bool* hasFree;
     const std::string& filename;
 
-    const std::map<std::string, Decl> decls;
+    std::string indent = "  ";
+
+    const std::map<std::string, Decl>& decls;
+    const std::map<std::string, Scope>& scopes;
 
     explicit InstContext(const std::vector<std::string>& instArgs,
                          std::optional<std::string> attachedScope, size_t depth, size_t lineNum,
                          bool* hasMalloc, bool* hasFree, const std::string& filename,
-                         const std::map<std::string, Decl> decls);
+                         const std::map<std::string, Decl>& decls,
+                         const std::map<std::string, Scope>& scopes);
 
     void throwErr(const std::string& reason);
+};
+
+struct CodeLines {
+    std::string indent = "  ";
+    std::string string;
+
+    CodeLines(InstContext& ctx);
+    CodeLines(std::string indent);
+    void addLine(const std::string& line);
+
+    void operator+=(const std::string& s);
 };
 
 std::string add(InstContext& ctx);
@@ -38,5 +53,7 @@ std::string or_bin(InstContext& ctx);
 std::string not_bin(InstContext& ctx);
 std::string xor_bin(InstContext& ctx);
 std::string out(InstContext& ctx);
+std::string asg(InstContext& ctx);
+std::string exit_prog(InstContext& ctx);
 
 }  // namespace bsl
