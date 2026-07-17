@@ -27,15 +27,12 @@ void CodeLines::operator+=(const std::string& s) { addLine(s); }
 
 InstContext::InstContext(const std::vector<std::string>& instArgs,
                          std::optional<std::string> attachedScope, size_t depth, size_t lineNum,
-                         bool* hasMalloc, bool* hasFree, const std::string& filename,
-                         const std::map<std::string, Decl>& decls,
+                         const std::string& filename, const std::map<std::string, Decl>& decls,
                          const std::map<std::string, Scope>& scopes)
     : instArgs(instArgs),
       attachedScope(attachedScope),
       depth(depth),
       lineNumber(lineNum),
-      hasMalloc(hasMalloc),
-      hasFree(hasFree),
       filename(filename),
       decls(decls),
       scopes(scopes) {}
@@ -77,7 +74,7 @@ ParsedValue processArg(size_t argIndex, uint8_t typeMask, InstContext& ctx) {
         if (arg == "true") {
             return {"1", ATOM};
         }
-        if (arg == "false") {
+        if (arg == "false" || arg == "null") {
             return {"0", ATOM};
         }
     }

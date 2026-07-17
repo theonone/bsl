@@ -34,10 +34,15 @@ void printPdata(ProgramData& pdata) {
     }
 }
 
-std::string compile(const std::string& in, size_t indent, bool allowTabs) {
+std::string compile(const std::string& in, size_t indent, bool allowTabs, const std::string& os,
+                    const std::string& arch) {
     auto parser = BSLParser(in, indent, allowTabs);
     auto prog = parser.parse();
     printPdata(prog);
+
+    if (arch != "x86_64" || os != "linux") {
+        throw std::runtime_error("Sorry, currently the compiler can only compile for x86_64 Linux");
+    }
     auto translator = X86_64Translator(prog, in);
     return translator.translate();
 }

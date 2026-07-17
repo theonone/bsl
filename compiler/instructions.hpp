@@ -15,8 +15,6 @@ struct InstContext {
     std::optional<std::string> attachedScope;  // with ifs, fors, and funcs
     size_t depth;
     size_t lineNumber;
-    bool* hasMalloc;
-    bool* hasFree;
     const std::string& filename;
 
     std::string indent = "  ";
@@ -26,8 +24,7 @@ struct InstContext {
 
     explicit InstContext(const std::vector<std::string>& instArgs,
                          std::optional<std::string> attachedScope, size_t depth, size_t lineNum,
-                         bool* hasMalloc, bool* hasFree, const std::string& filename,
-                         const std::map<std::string, Decl>& decls,
+                         const std::string& filename, const std::map<std::string, Decl>& decls,
                          const std::map<std::string, Scope>& scopes);
 
     void throwErr(const std::string& reason);

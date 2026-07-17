@@ -4,6 +4,7 @@
 
 namespace bsl {
 
-std::string compile(const std::string& in, size_t indent, bool allowTabs);
+std::string compile(const std::string& in, size_t indent, bool allowTabs, const std::string& os,
+                    const std::string& arch);
 
 }

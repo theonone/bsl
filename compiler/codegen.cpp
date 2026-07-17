@@ -35,8 +35,8 @@ void X86_64Translator::_makeLabel(const std::string& scopeName) {
 }
 
 std::string X86_64Translator::_translateInstruction(const Instruction& inst) {
-    InstContext ctx = InstContext(inst.args, inst.attachedScope, inst.depth, inst.lineNumber,
-                                  &_usesMalloc, &_usesFree, _src, _pdata.decls, _pdata.scopes);
+    InstContext ctx = InstContext(inst.args, inst.attachedScope, inst.depth, inst.lineNumber, _src,
+                                  _pdata.decls, _pdata.scopes);
     std::string translation;
     if (inst.inst == "add") {
         translation = bsl::add(ctx);
@@ -64,12 +64,6 @@ std::string X86_64Translator::translate() {
     _makeSecData();
     _makeSecText();
 
-    if (_usesMalloc) {
-        _asm += "extern malloc\n";
-    }
-    if (_usesFree) {
-        _asm += "extern free\n";
-    }
     _asm += "section .data\n";
     _asm += _secData;
     _asm +=

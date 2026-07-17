@@ -11,8 +11,6 @@ class X86_64Translator {
     bool _translated = false;
     std::string _secData;
     std::string _secText;
-    bool _usesMalloc = false;
-    bool _usesFree = false;
 
     // assumes the parser has already processed decls
     void _makeSecData();

@@ -60,6 +60,10 @@ void BSLParser::_validateName(const std::string& name, size_t lineNum) {
     if (((name[0] >= 48) && (name[0] <= 57))) {
         throw CodeError("Names cannot start with a number", _filename, lineNum + 1);
     }
+
+    if (name == "true" || name == "false" || name == "null") {
+        throw CodeError(name + " is a reserved keyword", _filename, lineNum + 1);
+    }
 }
 
 void BSLParser::_validateType(const std::string& type, size_t lineNum) {
@@ -87,7 +91,7 @@ std::string BSLParser::_parseValue(const std::string& val, size_t lineNum) {
     if (val == "true")
         return "1";
 
-    if (val == "false")
+    if (val == "false" || val == "null")
         return "0";
 
     if (val[0] == '\"')
