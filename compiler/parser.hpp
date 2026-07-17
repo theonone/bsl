@@ -21,12 +21,14 @@ struct Decl {
     std::string value;
     std::string type;
     size_t line;
+    bool extrn = false;
 };
 
 struct Scope {
     std::string name;
     std::vector<Instruction> instructions;
     size_t depth;
+    bool extrn = false;
 };
 
 struct ProgramData {
@@ -36,7 +38,7 @@ struct ProgramData {
 
 class BSLParser {
    private:
-    std::vector<std::string> _lines;
+    std::vector<std::string>& _lines;
     ProgramData _pdata;
     std::string _filename;
     size_t _indent;
@@ -59,7 +61,8 @@ class BSLParser {
     size_t _scopeDepth(size_t lineNumber);
 
    public:
-    BSLParser(const std::string& filename, size_t indent, bool allowTabs);
+    BSLParser(const std::string& filename, std::vector<std::string>& lines, size_t indent,
+              bool allowTabs);
     ProgramData parse();
 };
 

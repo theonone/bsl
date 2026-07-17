@@ -4,7 +4,6 @@
 #include <stdexcept>
 
 #include "errors.hpp"
-#include "fileIO.hpp"
 #include "stringTools.hpp"
 
 namespace bsl {
@@ -179,9 +178,39 @@ ProgramData BSLParser::parse() {
             _addDecl(line);
         } else if (line.inst == "proc") {
             i = _processScope(i, line) - 1;
+        } else if (line.inst == "extern") {
+            auto err = CodeError(
+                "Expected patterns: \"extern proc {name}\" or \"extern decl {name}, {type}, "
+                "{value}\"",
+                _filename, i + 1);
+            if (line.args.size() < 1)
+                throw err;
+            auto instrSplit = split(line.args[0], ' ', true);
+            if (instrSplit.size() != 2)
+                throw err;
+            auto instr = instrSplit[0];
+            auto name = instrSplit[1];
+
+            if (!(((line.args.size() == 1) && (instr == "proc")) ||
+                  (((line.args.size() == 3) && (instr == "decl"))))) {
+                throw err;
+            }
+            _validateName(name, i);
+            if (instr == "proc") {
+                _pdata.scopes["p_" + name] = {
+                    .name = "p_" + name, .depth = line.depth, .extrn = true};
+            } else if (instr == "decl") {
+                std::string declName = "d_" + name;
+                _pdata.decls[declName] = {
+                    .name = declName, .type = line.args[1], .line = line.lineNumber, .extrn = true};
+                _validateType(line.args[1], line.lineNumber);
+                _pdata.decls[declName].value = _parseValue(line.args[2], line.lineNumber);
+            }
+
         } else {
-            throw CodeError("No instructions other than proc and decl are allowed in global scope",
-                            _filename, i + 1);
+            throw CodeError(
+                "No instructions other than proc, extern, and decl are allowed in global scope",
+                _filename, i + 1);
         }
     }
 
@@ -244,10 +273,8 @@ size_t BSLParser::_processScope(size_t lineNumber, Instruction inst) {
     return i;
 }
 
-BSLParser::BSLParser(const std::string& filename, size_t indent, bool allowTabs)
-    : _filename(filename), _indent(indent), _allowTabs(allowTabs) {
-    auto s = readFileAsString(filename);
-    _lines = split(s, '\n', false);
-}
+BSLParser::BSLParser(const std::string& filename, std::vector<std::string>& lines, size_t indent,
+                     bool allowTabs)
+    : _filename(filename), _indent(indent), _allowTabs(allowTabs), _lines(lines) {}
 
 }  // namespace bsl

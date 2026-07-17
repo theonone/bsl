@@ -8,6 +8,8 @@ namespace bsl {
 
 void X86_64Translator::_makeSecData() {
     for (auto& decl : _pdata.decls) {
+        if (decl.second.extrn)
+            continue;
         _secData += "  " + decl.first + " " + typeToD(decl.second.type, decl.second.line, _src) +
                     " " + decl.second.value + '\n';
     }
@@ -23,8 +25,25 @@ void X86_64Translator::_makeSecText() {
     }
 }
 
+std::string X86_64Translator::_gatherExterns() {
+    CodeLines lines("  ");
+    for (const auto& p : _pdata.scopes) {
+        if (p.second.extrn) {
+            lines += "extern " + p.first;
+        }
+    }
+    for (const auto& p : _pdata.decls) {
+        if (p.second.extrn) {
+            lines += "extern " + p.first;
+        }
+    }
+    return lines.string;
+}
+
 void X86_64Translator::_makeLabel(const std::string& scopeName) {
     const Scope& scope = _pdata.scopes[scopeName];
+    if (scope.extrn)
+        return;
     CodeLines label("  ");
     label.string = scopeName + ":\n";
     for (const Instruction& inst : scope.instructions) {
@@ -69,6 +88,7 @@ std::string X86_64Translator::translate() {
     _asm +=
         "section .text\n"
         "  global _start\n";
+    _asm += _gatherExterns();
     _asm += _secText;
     _asm +=
         "_start:\n"
@@ -79,7 +99,7 @@ std::string X86_64Translator::translate() {
         "  pop rbp\n"
         "  mov rax, 60\n"
         "  xor rdi, rdi\n"
-        "  syscall";
+        "  syscall\n";
 
     _translated = true;
     return _asm;

@@ -34,9 +34,9 @@ void printPdata(ProgramData& pdata) {
     }
 }
 
-std::string compile(const std::string& in, size_t indent, bool allowTabs, const std::string& os,
-                    const std::string& arch) {
-    auto parser = BSLParser(in, indent, allowTabs);
+std::string compile(const std::string& in, std::vector<std::string>& lines, size_t indent,
+                    bool allowTabs, const std::string& os, const std::string& arch) {
+    auto parser = BSLParser(in, lines, indent, allowTabs);
     auto prog = parser.parse();
     printPdata(prog);
 

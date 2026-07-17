@@ -26,6 +26,8 @@ int main(int argc, char** argv) {
     bool tabs = true;
     std::string os = "linux";
     std::string arch = "x86_64";
+    std::string assembler = "nasm";
+    std::string linker = "ld";
 
     if (args[0] == "--help") {
         std::cout
@@ -148,10 +150,11 @@ int main(int argc, char** argv) {
     if (!compile) {
         std::string fullCode = bsl::join(preprocessor.getLines(), "\n");
         bsl::writeToFile(args[outIndex], fullCode);
+        return 0;
     }
     std::string compiled;
     try {
-        compiled = bsl::compile(args[0], indent, tabs, os, arch);
+        compiled = bsl::compile(args[0], preprocessor.getLines(), indent, tabs, os, arch);
     } catch (const bsl::CodeError& err) {
         std::cout << "Compilation failed!\n" << err.what() << std::endl;
     }

@@ -15,6 +15,7 @@ class X86_64Translator {
     // assumes the parser has already processed decls
     void _makeSecData();
     void _makeSecText();
+    std::string _gatherExterns();
 
     void _makeLabel(const std::string& scopeName);
 
