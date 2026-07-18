@@ -67,6 +67,24 @@ std::string X86_64Translator::_translateInstruction(const Instruction& inst) {
         translation = bsl::exit_prog(ctx);
     } else if (inst.inst == "call") {
         translation = bsl::call(ctx);
+    } else if (inst.inst == "eq") {
+        translation = bsl::eq(ctx);
+    } else if (inst.inst == "if") {
+        translation = bsl::cond(ctx);
+    } else if (inst.inst == "break") {
+        translation = bsl::brk(ctx);
+    } else if (inst.inst == "ret") {
+        translation = bsl::ret(ctx);
+    } else if (inst.inst == "loop") {
+        translation = bsl::loop(ctx);
+    } else if (inst.inst == "not") {
+        translation = bsl::not_bin(ctx);
+    } else if (inst.inst == "and") {
+        translation = bsl::and_bin(ctx);
+    } else if (inst.inst == "or") {
+        translation = bsl::or_bin(ctx);
+    } else if (inst.inst == "xor") {
+        translation = bsl::xor_bin(ctx);
     } else {
         ctx.throwErr("Unrecognized instruction - " + inst.inst);
     }
@@ -83,6 +101,7 @@ std::string X86_64Translator::translate() {
     _makeSecData();
     _makeSecText();
 
+    _asm += "default rel\n";
     _asm += "section .data\n";
     _asm += _secData;
     _asm +=

@@ -52,5 +52,10 @@ std::string xor_bin(InstContext& ctx);
 std::string out(InstContext& ctx);
 std::string asg(InstContext& ctx);
 std::string exit_prog(InstContext& ctx);
+std::string eq(InstContext& ctx);
+std::string loop(InstContext& ctx);
+std::string cond(InstContext& ctx);
+std::string brk(InstContext& ctx);
+std::string ret(InstContext& ctx);
 
 }  // namespace bsl

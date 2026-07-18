@@ -3,6 +3,7 @@
 #include <iostream>
 
 #include "errors.hpp"
+#include "helpers.hpp"
 #include "stringTools.hpp"
 
 namespace bsl {
@@ -134,33 +135,32 @@ std::string setReg(const std::string& reg, const std::string& val) {
     }
 }
 
-std::string dumpReg(const std::string& reg, const std::string& name) {
-    return "mov [" + name + "], " + reg + '\n';
+std::string dumpReg(const std::string& reg, const std::string& name, InstContext& ctx) {
+    auto it = ctx.decls.find(name);
+    if (it == ctx.decls.end()) {
+        ctx.throwErr("Couldn't find decl " + name);
+    }
+    return "mov " + bToType((*it).second.type, ctx.lineNumber, ctx.filename) + "[" + name + "], " +
+           reg + '\n';
 }
 
-std::string add(InstContext& ctx) {
+// first arg atom or decl, second decl. loads 1 into rax, 2 into rbx, does "between", dumps rbx into
+// arg 2
+std::string mutSecond(InstContext& ctx, std::string between) {
     assertCount(ctx, 2);
     auto arg1 = processArg(0, ATOMS_ALW | DECLS_ALW, ctx);
     auto arg2 = processArg(1, DECLS_ALW, ctx);
     CodeLines code(ctx);
     code += setReg("rax", arg1.processed);
     code += setReg("rbx", arg2.processed);
-    code += "add rbx, rax";
-    code += dumpReg("rbx", arg2.processed);
+    code += between;
+    code += dumpReg("rbx", arg2.processed, ctx);
     return code.string;
 }
-std::string sub(InstContext& ctx) {
-    assertCount(ctx, 2);
-    auto arg1 = processArg(0, ATOMS_ALW | DECLS_ALW, ctx);
-    auto arg2 = processArg(1, DECLS_ALW, ctx);
-    CodeLines code(ctx);
-    code += setReg("rax", arg1.processed);
-    code += setReg("rbx", arg2.processed);
-    code += "sub rbx, rax";
-    code += dumpReg("rbx", arg2.processed);
-    return code.string;
-}
-std::string mul(InstContext& ctx) {}
+
+std::string add(InstContext& ctx) { return mutSecond(ctx, "add rbx, rax"); }
+std::string sub(InstContext& ctx) { return mutSecond(ctx, "sub rbx, rax"); }
+std::string mul(InstContext& ctx) { return mutSecond(ctx, "mul rbx, rax"); }
 std::string call(InstContext& ctx) {
     assertCount(ctx, 1);
     auto arg = processArg(0, PROCS_ALW, ctx);
@@ -168,19 +168,25 @@ std::string call(InstContext& ctx) {
     code += "call " + arg.processed;
     return code.string;
 }
-std::string and_bin(InstContext& ctx) {}
-std::string or_bin(InstContext& ctx) {}
-std::string not_bin(InstContext& ctx) {}
-std::string xor_bin(InstContext& ctx) {}
-std::string out(InstContext& ctx) {}
-
+std::string and_bin(InstContext& ctx) { return mutSecond(ctx, "and rbx, rax"); }
+std::string or_bin(InstContext& ctx) { return mutSecond(ctx, "or rbx, rax"); }
+std::string not_bin(InstContext& ctx) {
+    assertCount(ctx, 1);
+    auto arg1 = processArg(0, DECLS_ALW, ctx);
+    CodeLines code(ctx);
+    code += setReg("rax", arg1.processed);
+    code += "not rax";
+    code += dumpReg("rbx", arg1.processed, ctx);
+    return code.string;
+}
+std::string xor_bin(InstContext& ctx) { return mutSecond(ctx, "xor rbx, rax"); }
 std::string asg(InstContext& ctx) {
     assertCount(ctx, 2);
     auto arg1 = processArg(0, ATOMS_ALW | DECLS_ALW, ctx);
     auto arg2 = processArg(1, DECLS_ALW, ctx);
     CodeLines code(ctx);
     code += setReg("rax", arg1.processed);
-    code += dumpReg("rax", arg2.processed);
+    code += dumpReg("rax", arg2.processed, ctx);
     return code.string;
 }
 std::string exit_prog(InstContext& ctx) {
@@ -191,5 +197,23 @@ std::string exit_prog(InstContext& ctx) {
     code += "syscall";
     return code.string;
 }
+std::string eq(InstContext& ctx) {
+    assertCount(ctx, 3);
+    auto arg1 = processArg(0, ATOMS_ALW | DECLS_ALW, ctx);
+    auto arg2 = processArg(1, DECLS_ALW | ATOMS_ALW, ctx);
+    auto arg3 = processArg(2, DECLS_ALW, ctx);
 
+    CodeLines code(ctx);
+    code += setReg("rax", arg1.processed);
+    code += setReg("rbx", arg2.processed);
+    code += "mov rcx, 0";
+    code += "cmp rax, rbx";
+    code += "sete cl";
+    code += dumpReg("rcx", arg3.processed, ctx);
+    return code.string;
+}
+std::string loop(InstContext& ctx) {}
+std::string cond(InstContext& ctx) {}
+std::string brk(InstContext& ctx) {}
+std::string ret(InstContext& ctx) {}
 }  // namespace bsl

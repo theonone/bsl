@@ -6,7 +6,11 @@
 
 namespace bsl {
 std::string BSLPreprocessor::_getAngledPath(const std::string& name, bool import) {
-    return "compiler/libs/" + (import ? "interfaces/" : _os + "-" + _arch + "/") + name;
+    if (import) {
+        return "/usr/local/lib/bsl/bsl/" + name + ".bsl";
+    } else {
+        return "/usr/local/lib/bsl/impl/" + _os + "-" + _arch + "/o/" + name;
+    }
 }
 
 std::pair<std::string, bool> BSLPreprocessor::_extractName(size_t lineIndex) {
@@ -42,7 +46,8 @@ BSLPreprocessor::BSLPreprocessor(const std::string& in, const std::string& os,
 void BSLPreprocessor::preprocess() {
     _lines = split(readFileAsString(_inFile), '\n', false);
     for (size_t i = 0; i < _lines.size(); ++i) {
-        if (startswith(_lines[i], "import")) {
+        std::string line = trim(_lines[i]);
+        if (startswith(line, "import")) {
             auto extracted = _extractName(i);
             std::string path =
                 extracted.second ? _getAngledPath(extracted.first, true) : extracted.first;
@@ -58,18 +63,21 @@ void BSLPreprocessor::preprocess() {
             }
             auto p = BSLPreprocessor(path, _os, _arch, _importStack);
             p.preprocess();
+            _links.merge(p.getLinks());
             size_t insertedLines = p.getLines().size();
             auto it = _lines.begin() + i;
             it = _lines.erase(it);
             _lines.insert(it, p.getLines().begin(), p.getLines().end());
             i += insertedLines - 1;
-        } else if (startswith(_lines[i], "link")) {
+        } else if (startswith(line, "link")) {
             auto extracted = _extractName(i);
             std::string path =
                 extracted.second ? _getAngledPath(extracted.first, false) : extracted.first;
             _links.insert(path);
+
             auto it = _lines.begin() + i;
             _lines.erase(it);
+
             --i;
         }
     }

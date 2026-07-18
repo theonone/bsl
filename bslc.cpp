@@ -157,6 +157,7 @@ int main(int argc, char** argv) {
         compiled = bsl::compile(args[0], preprocessor.getLines(), indent, tabs, os, arch);
     } catch (const bsl::CodeError& err) {
         std::cout << "Compilation failed!\n" << err.what() << std::endl;
+        return 0;
     }
 
     if (!assemble) {
@@ -164,7 +165,31 @@ int main(int argc, char** argv) {
         return 0;
     }
 
-    std::cout << "Other stages not yet implemented, run with -S flag" << std::endl;
+    if (os == "linux") {
+        std::string tmpDir = "/tmp/bslc/";
+        std::string asmFile = tmpDir + fname + ".asm";
+        bsl::writeToFile(asmFile, compiled);
+        std::string objFile = (outIndex != -1 && !link) ? args[outIndex] : tmpDir + fname + ".o";
+        std::system(("nasm -f elf64 " + asmFile + " -o " + objFile).c_str());
+
+        if (!link)
+            return 0;
+
+        std::string extraLinks;
+
+        for (auto& l : preprocessor.getLinks()) {
+            extraLinks += l + ' ';
+        }
+        std::string execFile = (outIndex != -1) ? args[outIndex] : fname;
+
+        std::system(("ld " + objFile + " " + extraLinks + " -o " + execFile).c_str());
+
+        // clear the /tmp dir later
+    } else {
+        std::cout << "Sorry, the compiler is not yet adapted to platforms other than linux!"
+                  << std::endl;
+        return 0;
+    }
 
     return 0;
 }

@@ -1,5 +1,6 @@
 #include "fileIO.hpp"
 
+#include <filesystem>
 #include <fstream>
 #include <sstream>
 #include <stdexcept>
@@ -17,6 +18,10 @@ std::string readFileAsString(const std::string& filename) {
 }
 
 void writeToFile(const std::string& filename, const std::string& data) {
+    if (filename.find("/") != std::string::npos) {
+        std::filesystem::create_directories(std::filesystem::path(filename).parent_path());
+    }
+
     std::ofstream file(filename, std::ios::out | std::ios::binary | std::ios::trunc);
     if (!file)
         throw std::runtime_error("Failed to open file for writing: " + filename);
