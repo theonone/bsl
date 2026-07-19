@@ -14,6 +14,7 @@ struct Instruction {
     std::optional<std::string> attachedScope;  // with ifs, fors, and funcs
     size_t depth;
     size_t lineNumber;
+    std::string scope = "glb";
 };
 
 struct Decl {

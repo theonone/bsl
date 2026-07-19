@@ -29,14 +29,15 @@ void CodeLines::operator+=(const std::string& s) { addLine(s); }
 InstContext::InstContext(const std::vector<std::string>& instArgs,
                          std::optional<std::string> attachedScope, size_t depth, size_t lineNum,
                          const std::string& filename, const std::map<std::string, Decl>& decls,
-                         const std::map<std::string, Scope>& scopes)
+                         const std::map<std::string, Scope>& scopes, const std::string& scopeName)
     : instArgs(instArgs),
       attachedScope(attachedScope),
       depth(depth),
       lineNumber(lineNum),
       filename(filename),
       decls(decls),
-      scopes(scopes) {}
+      scopes(scopes),
+      scopeName(scopeName) {}
 
 void InstContext::throwErr(const std::string& reason) {
     throw CodeError(reason, filename, lineNumber);
@@ -176,7 +177,7 @@ std::string not_bin(InstContext& ctx) {
     CodeLines code(ctx);
     code += setReg("rax", arg1.processed);
     code += "not rax";
-    code += dumpReg("rbx", arg1.processed, ctx);
+    code += dumpReg("rax", arg1.processed, ctx);
     return code.string;
 }
 std::string xor_bin(InstContext& ctx) { return mutSecond(ctx, "xor rbx, rax"); }
@@ -212,8 +213,22 @@ std::string eq(InstContext& ctx) {
     code += dumpReg("rcx", arg3.processed, ctx);
     return code.string;
 }
-std::string loop(InstContext& ctx) {}
-std::string cond(InstContext& ctx) {}
-std::string brk(InstContext& ctx) {}
-std::string ret(InstContext& ctx) {}
+std::string loop(InstContext& ctx) {
+    CodeLines lines(ctx);
+    lines.string += "";
+    return lines.string;
+}
+std::string cond(InstContext& ctx) {
+    CodeLines lines(ctx);
+    lines.string += "";
+    return lines.string;
+}
+std::string brk(InstContext& ctx) {
+    assertCount(ctx, 0);
+    // if (!startswith(ctx.scopeName, "L_bslc_loop_")) {
+    //     ctx.throwErr("The \"break\" instruction can only be used to interrupt a loop");
+    // }
+    return ctx.indent + "ret";
+}
+std::string ret(InstContext& ctx) { return "  ret"; }
 }  // namespace bsl

@@ -55,7 +55,7 @@ void X86_64Translator::_makeLabel(const std::string& scopeName) {
 
 std::string X86_64Translator::_translateInstruction(const Instruction& inst) {
     InstContext ctx = InstContext(inst.args, inst.attachedScope, inst.depth, inst.lineNumber, _src,
-                                  _pdata.decls, _pdata.scopes);
+                                  _pdata.decls, _pdata.scopes, inst.scope);
     std::string translation;
     if (inst.inst == "add") {
         translation = bsl::add(ctx);

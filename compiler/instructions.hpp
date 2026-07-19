@@ -16,6 +16,7 @@ struct InstContext {
     size_t depth;
     size_t lineNumber;
     const std::string& filename;
+    const std::string& scopeName;
 
     std::string indent = "  ";
 
@@ -25,7 +26,7 @@ struct InstContext {
     explicit InstContext(const std::vector<std::string>& instArgs,
                          std::optional<std::string> attachedScope, size_t depth, size_t lineNum,
                          const std::string& filename, const std::map<std::string, Decl>& decls,
-                         const std::map<std::string, Scope>& scopes);
+                         const std::map<std::string, Scope>& scopes, const std::string& scopeName);
 
     void throwErr(const std::string& reason);
 };

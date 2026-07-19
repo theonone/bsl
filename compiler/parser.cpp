@@ -266,7 +266,7 @@ size_t BSLParser::_processScope(size_t lineNumber, Instruction inst) {
             _addDecl(line);
             continue;
         }
-
+        line.scope = scopeName;
         scope.instructions.push_back(line);
     }
 
