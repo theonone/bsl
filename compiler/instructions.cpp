@@ -1,5 +1,6 @@
 #include "instructions.hpp"
 
+#include <algorithm>
 #include <iostream>
 
 #include "errors.hpp"
@@ -12,19 +13,36 @@ CodeLines::CodeLines(InstContext& ctx) { indent = ctx.indent; }
 
 CodeLines::CodeLines(std::string indent) : indent(indent) {}
 
-void CodeLines::addLine(const std::string& line) {
-    if (line.empty())
+void CodeLines::addLine(const std::string& line, bool skipIndent) {
+    if (startswith(line, indent))
+        skipIndent = true;
+    std::string trimmed = trim(line, '\n');
+    size_t newlinePos = trimmed.find('\n');
+    if (newlinePos != std::string::npos) {
+        std::string rest = trimmed.substr(newlinePos);
+        trimmed = trimmed.substr(0, newlinePos);
+        lines.push_back(((skipIndent) ? "" : indent) + trimmed);
+        addLine(rest, true);
         return;
-    if (!startswith(line, indent)) {
-        string += indent;
     }
-    string += line;
-    if (line[line.size() - 1] != '\n') {
-        string += '\n';
+    lines.push_back(((skipIndent) ? "" : indent) + trimmed);
+}
+
+std::string CodeLines::toString() {
+    std::string s;
+    for (const auto& line : lines) {
+        s += line + "\n";
     }
+    return s;
 }
 
 void CodeLines::operator+=(const std::string& s) { addLine(s); }
+
+std::string& CodeLines::operator[](size_t index) {
+    if (index >= lines.size())
+        throw std::runtime_error("Invalid CodeLines index!");
+    return lines[index];
+}
 
 InstContext::InstContext(const std::vector<std::string>& instArgs,
                          std::optional<std::string> attachedScope, size_t depth, size_t lineNum,
@@ -156,7 +174,7 @@ std::string mutSecond(InstContext& ctx, std::string between) {
     code += setReg("rbx", arg2.processed);
     code += between;
     code += dumpReg("rbx", arg2.processed, ctx);
-    return code.string;
+    return code.toString();
 }
 
 std::string add(InstContext& ctx) { return mutSecond(ctx, "add rbx, rax"); }
@@ -167,7 +185,7 @@ std::string call(InstContext& ctx) {
     auto arg = processArg(0, PROCS_ALW, ctx);
     CodeLines code(ctx);
     code += "call " + arg.processed;
-    return code.string;
+    return code.toString();
 }
 std::string and_bin(InstContext& ctx) { return mutSecond(ctx, "and rbx, rax"); }
 std::string or_bin(InstContext& ctx) { return mutSecond(ctx, "or rbx, rax"); }
@@ -178,7 +196,7 @@ std::string not_bin(InstContext& ctx) {
     code += setReg("rax", arg1.processed);
     code += "not rax";
     code += dumpReg("rax", arg1.processed, ctx);
-    return code.string;
+    return code.toString();
 }
 std::string xor_bin(InstContext& ctx) { return mutSecond(ctx, "xor rbx, rax"); }
 std::string asg(InstContext& ctx) {
@@ -188,7 +206,7 @@ std::string asg(InstContext& ctx) {
     CodeLines code(ctx);
     code += setReg("rax", arg1.processed);
     code += dumpReg("rax", arg2.processed, ctx);
-    return code.string;
+    return code.toString();
 }
 std::string exit_prog(InstContext& ctx) {
     assertCount(ctx, 0);
@@ -196,7 +214,7 @@ std::string exit_prog(InstContext& ctx) {
     code += "mov rax, 60";
     code += "xor rdi, rdi";
     code += "syscall";
-    return code.string;
+    return code.toString();
 }
 std::string eq(InstContext& ctx) {
     assertCount(ctx, 3);
@@ -211,17 +229,25 @@ std::string eq(InstContext& ctx) {
     code += "cmp rax, rbx";
     code += "sete cl";
     code += dumpReg("rcx", arg3.processed, ctx);
-    return code.string;
+    return code.toString();
 }
 std::string loop(InstContext& ctx) {
     CodeLines lines(ctx);
-    lines.string += "";
-    return lines.string;
+    lines += "mov qword[d_print_u64_arg], 1006";
+    lines += "call p_print_u64";
+    return lines.toString();
 }
 std::string cond(InstContext& ctx) {
-    CodeLines lines(ctx);
-    lines.string += "";
-    return lines.string;
+    assertCount(ctx, 1);
+    CodeLines code(ctx);
+    auto arg1 = processArg(0, ATOMS_ALW | DECLS_ALW, ctx);
+    std::string restName = "L_bslc_rest_" + ctx.attachedScope.value().substr(10);
+
+    code += setReg("rax", arg1.processed);
+    code += "test rax, rax";
+    code += "jnz " + ctx.attachedScope.value();
+    code += "jmp " + restName;
+    return code.toString();
 }
 std::string brk(InstContext& ctx) {
     assertCount(ctx, 0);

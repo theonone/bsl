@@ -5,6 +5,7 @@
 namespace bsl {
 
 std::string typeToD(const std::string& type, size_t line, const std::string& filename) {
+    return "dq";
     if (type == "b8") {
         return "db";
     }
@@ -21,6 +22,7 @@ std::string typeToD(const std::string& type, size_t line, const std::string& fil
 }
 
 std::string bToType(const std::string& bslType, size_t line, const std::string& filename) {
+    return "qword";
     if (bslType == "b8") {
         return "byte";
     }
@@ -35,5 +37,7 @@ std::string bToType(const std::string& bslType, size_t line, const std::string& 
     }
     throw CodeError("Unknown type - " + bslType, filename, line);
 }
+
+std::string getRestName(const std::string& ifName) { return "L_bslc_rest_" + ifName.substr(10); }
 
 }  // namespace bsl

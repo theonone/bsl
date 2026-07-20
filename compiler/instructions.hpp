@@ -32,14 +32,17 @@ struct InstContext {
 };
 
 struct CodeLines {
+    std::vector<std::string> lines;
     std::string indent = "  ";
-    std::string string;
 
     CodeLines(InstContext& ctx);
     CodeLines(std::string indent);
-    void addLine(const std::string& line);
+    void addLine(const std::string& line, bool skipIndent = false);
+
+    std::string toString();
 
     void operator+=(const std::string& s);
+    std::string& operator[](size_t index);
 };
 
 std::string add(InstContext& ctx);
@@ -50,7 +53,6 @@ std::string and_bin(InstContext& ctx);
 std::string or_bin(InstContext& ctx);
 std::string not_bin(InstContext& ctx);
 std::string xor_bin(InstContext& ctx);
-std::string out(InstContext& ctx);
 std::string asg(InstContext& ctx);
 std::string exit_prog(InstContext& ctx);
 std::string eq(InstContext& ctx);

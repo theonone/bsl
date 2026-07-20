@@ -30,6 +30,7 @@ struct Scope {
     std::vector<Instruction> instructions;
     size_t depth;
     bool extrn = false;
+    std::string parentName = "glb";
 };
 
 struct ProgramData {
@@ -47,6 +48,7 @@ class BSLParser {
     bool _parsed = false;
     size_t _ifCount = 0;
     size_t _loopCount = 0;
+
     const std::string _bslcPrefix = "L_bslc_";
 
     void _validateName(const std::string& name, size_t lineNum);
@@ -57,7 +59,7 @@ class BSLParser {
     void _addDecl(Instruction inst);
 
     // returns the lineNumber to continue from
-    size_t _processScope(size_t lineNumber, Instruction inst);
+    size_t _processScope(size_t lineNumber, Instruction inst, std::string parent);
 
     size_t _scopeDepth(size_t lineNumber);
 

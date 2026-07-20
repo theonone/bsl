@@ -177,7 +177,7 @@ ProgramData BSLParser::parse() {
         } else if (line.inst == "decl") {
             _addDecl(line);
         } else if (line.inst == "proc") {
-            i = _processScope(i, line) - 1;
+            i = _processScope(i, line, "glb") - 1;
         } else if (line.inst == "extern") {
             auto err = CodeError(
                 "Expected patterns: \"extern proc {name}\" or \"extern decl {name}, {type}, "
@@ -218,7 +218,7 @@ ProgramData BSLParser::parse() {
     return _pdata;
 }
 
-size_t BSLParser::_processScope(size_t lineNumber, Instruction inst) {
+size_t BSLParser::_processScope(size_t lineNumber, Instruction inst, std::string parent) {
     std::string scopeName;
     if (inst.inst == "proc") {
         _validateName(inst.args[0], lineNumber);
@@ -228,16 +228,15 @@ size_t BSLParser::_processScope(size_t lineNumber, Instruction inst) {
                             lineNumber + 1);
 
         scopeName = "p_" + inst.args[0];
-    }
-    if (inst.inst == "if") {
+    } else if (inst.inst == "if") {
         scopeName = _bslcPrefix + "if_" + std::to_string(_ifCount++);
-    }
-
-    if (inst.inst == "loop") {
+    } else if (inst.inst == "loop") {
         scopeName = _bslcPrefix + "loop_" + std::to_string(_loopCount++);
+    } else {
+        throw CodeError("Compiler error - invalid scope", _filename, lineNumber + 1);
     }
 
-    _pdata.scopes[scopeName] = {.name = scopeName, .depth = inst.depth};
+    _pdata.scopes[scopeName] = {.name = scopeName, .depth = inst.depth, .parentName = parent};
 
     auto& scope = _pdata.scopes[scopeName];
 
@@ -258,10 +257,10 @@ size_t BSLParser::_processScope(size_t lineNumber, Instruction inst) {
             throw CodeError("Procedure declarations can only be top-level", _filename, i + 1);
         } else if (line.inst == "if") {
             line.attachedScope = _bslcPrefix + "if_" + std::to_string(_ifCount);
-            i = _processScope(i, line) - 1;
+            i = _processScope(i, line, scopeName) - 1;
         } else if (line.inst == "loop") {
             line.attachedScope = _bslcPrefix + "loop_" + std::to_string(_loopCount);
-            i = _processScope(i, line) - 1;
+            i = _processScope(i, line, scopeName) - 1;
         } else if (line.inst == "decl") {
             _addDecl(line);
             continue;
