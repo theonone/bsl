@@ -95,11 +95,13 @@ std::string X86_64Translator::_translateInstruction(const Instruction& inst) {
 
 void X86_64Translator::_preprocessIfs() {
     size_t ifCount = 0;
+    std::vector<std::string> scopeNames;  // create a copy to iterate
 
     for (const auto& p : _pdata.scopes) {
         if (startswith(p.first, "L_bslc_if_")) {
             ++ifCount;
         }
+        scopeNames.push_back(p.first);
     }
 
     for (size_t i = 0; i < ifCount; ++i) {
@@ -107,8 +109,8 @@ void X86_64Translator::_preprocessIfs() {
         _pdata.scopes[name] = {.name = name};
     }
 
-    for (const auto& p : _pdata.scopes) {
-        _preprocessIf(p.first);
+    for (const auto& name : scopeNames) {
+        _preprocessIf(name);
     }
 }
 
