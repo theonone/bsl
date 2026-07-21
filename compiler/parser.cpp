@@ -1,6 +1,7 @@
 #include "parser.hpp"
 
-// #include <iostream>
+#include <iostream>
+#include <stack>
 #include <stdexcept>
 
 #include "errors.hpp"
@@ -18,7 +19,7 @@ size_t BSLParser::_scopeDepth(size_t lineNumber) {
             ++spaces;
         } else if (line[i] == '\t') {
             if (!_allowTabs)
-                hasTabs;
+                hasTabs = true;
             spaces += _indent;
         } else {
             hasNonIndents = true;
@@ -39,6 +40,129 @@ size_t BSLParser::_scopeDepth(size_t lineNumber) {
             _filename, lineNumber + 1);
     }
     return spaces / _indent;
+}
+
+void BSLParser::_parse2() {
+    // create scopes
+    size_t lastDepth = 0;
+    size_t currDepth = 0;
+    std::string currScope = "";
+    size_t labelCount = 0;
+    std::stack<LoopInfo> loops;
+    bool insideLoop = false;
+    for (size_t i = 0; i < _lines.size(); ++i) {
+        auto line = _parseInstruction(i);
+        if (line.inst == "")
+            continue;
+        if (line.inst == "decl") {
+            _addDecl(line);
+        } else if (line.inst == "proc") {
+            if (line.args.size() != 1) {
+                throw CodeError(
+                    "Procedure declarations are supposed to have strictly one argument - the name",
+                    _filename, i + 1);
+            }
+            if (line.depth != 0) {
+                throw CodeError("Procedure declarations must be top-level", _filename, i + 1);
+            }
+            _validateName(line.args[0], i);
+            currScope = "p_" + line.args[0];
+            currDepth = 1;
+            _pdata.scopes[currScope] = {.name = currScope, .depth = currDepth};
+            _pdata.order.push_back(&_pdata.scopes[currScope]);
+        } else if (line.inst == "extern") {
+            auto err = CodeError(
+                "Expected patterns: \"extern proc {name}\" or \"extern decl {name}, {type}, "
+                "{value}\"",
+                _filename, i + 1);
+            if (line.args.size() < 1)
+                throw err;
+            auto instrSplit = split(line.args[0], ' ', true);
+            if (instrSplit.size() != 2)
+                throw err;
+            auto instr = instrSplit[0];
+            auto name = instrSplit[1];
+
+            if (!(((line.args.size() == 1) && (instr == "proc")) ||
+                  (((line.args.size() == 3) && (instr == "decl"))))) {
+                throw err;
+            }
+            _validateName(name, i);
+            if (instr == "proc") {
+                _pdata.scopes["p_" + name] = {
+                    .name = "p_" + name, .depth = line.depth, .extrn = true};
+            } else if (instr == "decl") {
+                std::string declName = "d_" + name;
+                _pdata.decls[declName] = {
+                    .name = declName, .type = line.args[1], .line = line.lineNumber, .extrn = true};
+                _validateType(line.args[1], line.lineNumber);
+                _pdata.decls[declName].value = _parseValue(line.args[2], line.lineNumber);
+            } else {
+                throw CodeError("Invalid extern", _filename, i + 1);
+            }
+        } else {
+            if (line.depth == 0) {
+                throw CodeError(
+                    "Invalid top-level instruction. Only proc, decl, import, link, and extern are "
+                    "allowed",
+                    _filename, i + 1);
+            }
+            auto& scope = _pdata.scopes[currScope];
+            if (line.depth == currDepth) {
+                scope.instructions.push_back(line);
+                continue;
+            }
+            if (scope.instructions.size() > 0 &&
+                (scope.instructions[scope.instructions.size() - 1].inst == "if" ||
+                 scope.instructions[scope.instructions.size() - 1].inst == "loop")) {
+                auto& lastLine = scope.instructions[scope.instructions.size() - 1];
+
+                if (lastLine.depth + 1 != line.depth) {
+                    throw CodeError("Invalid indentation", _filename, i + 1);
+                }
+
+                currScope = "L" + std::to_string(labelCount++);
+                currDepth = line.depth;
+
+                if (lastLine.inst == "loop") {
+                    loops.push({.beginName = currScope, .depth = currDepth});
+                }
+                std::string loopName;
+                if (!loops.empty()) {
+                    loopName = loops.top().beginName;
+                }
+                _pdata.scopes[currScope] = {
+                    .name = currScope, .depth = currDepth, .loopName = loopName};
+                _pdata.order.push_back(&_pdata.scopes[currScope]);
+                lastLine.attachedScope = currScope;
+                _pdata.scopes[currScope].instructions.push_back(line);
+                continue;
+            }
+            if (line.depth < currDepth) {
+                std::string loopName;
+                if (!loops.empty()) {
+                    loopName = loops.top().beginName;
+                    if (line.depth < loops.top().depth) {
+                        loops.pop();
+                        if (loops.empty()) {
+                            loopName = "";
+                        } else {
+                            loopName = loops.top().beginName;
+                        }
+                    }
+                }
+                currScope = "L" + std::to_string(labelCount++);
+                currDepth = line.depth;
+                _pdata.scopes[currScope] = {
+                    .name = currScope, .depth = currDepth, .loopName = loopName};
+                _pdata.order.push_back(&_pdata.scopes[currScope]);
+                _pdata.scopes[currScope].instructions.push_back(line);
+                continue;
+            }
+
+            throw CodeError("Invalid indentation, no scope to attach to", _filename, i + 1);
+        }
+    }
 }
 
 void BSLParser::_validateName(const std::string& name, size_t lineNum) {
@@ -164,10 +288,46 @@ void BSLParser::_addDecl(Instruction inst) {
     _validateType(inst.args[1], inst.lineNumber);
     _pdata.decls[declName].value = _parseValue(inst.args[2], inst.lineNumber);
 }
+void printScope(Scope& s) {
+    std::cout << "\n\nScope " << s.name << ", depth=" << s.depth << ", loop=" << s.loopName
+              << std::endl;
+    for (auto& inst : s.instructions) {
+        std::cout << inst.lineNumber << "| " << inst.inst << " ";
+        for (auto& arg : inst.args) {
+            std::cout << arg << ", ";
+        }
+        if (inst.attachedScope.has_value()) {
+            std::cout << " -> " << inst.attachedScope.value();
+        }
+        std::cout << std::endl;
+    }
+}
+
+void printPdata(ProgramData& pdata) {
+    for (auto& d : pdata.decls) {
+        std::cout << "Declaration " << d.second.type << " " << d.second.name << " = "
+                  << d.second.value << std::endl;
+    }
+
+    std::cout << "Total scopes - " << pdata.scopes.size() << std::endl;
+    std::cout << "Scope order: " << std::endl;
+    for (auto& p : pdata.order) {
+        std::cout << p->name << ", ";
+    }
+    std::cout << std::endl;
+    for (auto& p : pdata.order) {
+        printScope(*p);
+    }
+}
 
 ProgramData BSLParser::parse() {
     if (_parsed)
         return _pdata;
+    _parse2();
+
+    printPdata(_pdata);
+    _parsed = true;
+    return _pdata;
 
     // global scope
     for (size_t i = 0; i < _lines.size(); ++i) {
@@ -236,7 +396,7 @@ size_t BSLParser::_processScope(size_t lineNumber, Instruction inst, std::string
         throw CodeError("Compiler error - invalid scope", _filename, lineNumber + 1);
     }
 
-    _pdata.scopes[scopeName] = {.name = scopeName, .depth = inst.depth, .parentName = parent};
+    _pdata.scopes[scopeName] = {.name = scopeName, .depth = inst.depth};
 
     auto& scope = _pdata.scopes[scopeName];
 

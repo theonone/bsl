@@ -25,17 +25,23 @@ struct Decl {
     bool extrn = false;
 };
 
+struct LoopInfo {
+    std::string beginName;
+    size_t depth;
+};
+
 struct Scope {
     std::string name;
     std::vector<Instruction> instructions;
     size_t depth;
     bool extrn = false;
-    std::string parentName = "glb";
+    std::string loopName;
 };
 
 struct ProgramData {
     std::map<std::string, Decl> decls;
     std::map<std::string, Scope> scopes;
+    std::vector<Scope*> order;
 };
 
 class BSLParser {
@@ -62,6 +68,8 @@ class BSLParser {
     size_t _processScope(size_t lineNumber, Instruction inst, std::string parent);
 
     size_t _scopeDepth(size_t lineNumber);
+
+    void _parse2();
 
    public:
     BSLParser(const std::string& filename, std::vector<std::string>& lines, size_t indent,

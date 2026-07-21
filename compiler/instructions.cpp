@@ -241,12 +241,10 @@ std::string cond(InstContext& ctx) {
     assertCount(ctx, 1);
     CodeLines code(ctx);
     auto arg1 = processArg(0, ATOMS_ALW | DECLS_ALW, ctx);
-    std::string restName = "L_bslc_rest_" + ctx.attachedScope.value().substr(10);
 
     code += setReg("rax", arg1.processed);
     code += "test rax, rax";
     code += "jnz " + ctx.attachedScope.value();
-    code += "jmp " + restName;
     return code.toString();
 }
 std::string brk(InstContext& ctx) {

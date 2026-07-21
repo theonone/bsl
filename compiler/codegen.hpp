@@ -22,14 +22,16 @@ class X86_64Translator {
 
     std::string _translateInstruction(const Instruction& inst);
 
-    void _preprocessIfs();
-    void _preprocessIf(const std::string& name);
-    void _preprocessLoops();
-    void _preprocessLoop(const std::string& name);
-    void _postprocessLoops();
-    void _postprocessLoop(const std::string& labelName);
+    // void _preprocessIfs();
+    // void _preprocessIf(const std::string& name);
+    // void _preprocessLoops();
+    // void _preprocessLoop(const std::string& name);
+    // void _postprocessLoops();
+    // void _postprocessLoop(const std::string& labelName);
 
     std::string _resolveEnding(CodeLines& label, const Scope& sc);
+
+    std::string _findLowerScope(const std::string& from);
 
    public:
     X86_64Translator(const ProgramData& pdata, const std::string& srcFilename);

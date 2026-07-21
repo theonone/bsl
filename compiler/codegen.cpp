@@ -22,8 +22,8 @@ void X86_64Translator::_makeSecText() {
         throw CodeError("Procedure \"main\" not found", _src, -1);
     }
 
-    for (const auto& p : _pdata.scopes) {
-        _makeLabel(p.first);
+    for (const auto& sc : _pdata.order) {
+        _makeLabel(sc->name);
     }
 }
 
@@ -93,139 +93,141 @@ std::string X86_64Translator::_translateInstruction(const Instruction& inst) {
     return translation;
 }
 
-void X86_64Translator::_preprocessIfs() {
-    size_t ifCount = 0;
-    std::vector<std::string> scopeNames;  // create a copy to iterate
+// void X86_64Translator::_preprocessIfs() {
+//     size_t ifCount = 0;
+//     std::vector<std::string> scopeNames;  // create a copy to iterate
 
-    for (const auto& p : _pdata.scopes) {
-        if (startswith(p.first, "L_bslc_if_")) {
-            ++ifCount;
-        }
-        scopeNames.push_back(p.first);
-    }
+//     for (const auto& p : _pdata.scopes) {
+//         if (startswith(p.first, "L_bslc_if_")) {
+//             ++ifCount;
+//         }
+//         scopeNames.push_back(p.first);
+//     }
 
-    for (size_t i = 0; i < ifCount; ++i) {
-        auto name = "L_bslc_rest_" + std::to_string(i);
-        _pdata.scopes[name] = {.name = name};
-    }
+//     for (size_t i = 0; i < ifCount; ++i) {
+//         auto name = "L_bslc_rest_" + std::to_string(i);
+//         _pdata.scopes[name] = {.name = name};
+//     }
 
-    for (const auto& name : scopeNames) {
-        _preprocessIf(name);
-    }
-}
+//     for (const auto& name : scopeNames) {
+//         _preprocessIf(name);
+//     }
+// }
 
-void X86_64Translator::_preprocessIf(const std::string& name) {
-    auto& scope = _pdata.scopes[name];
-    for (size_t i = 0; i < scope.instructions.size(); ++i) {
-        auto& line = scope.instructions[i];
-        if (line.inst == "if") {
-            auto it = scope.instructions.begin() + i + 1;
-            std::string restName = "L_bslc_rest_" + line.attachedScope.value().substr(10);
-            auto& sc = _pdata.scopes[restName];
-            auto ifSc = _pdata.scopes[line.attachedScope.value()];
-            sc.instructions = std::vector(it, scope.instructions.end());
-            sc.parentName = ifSc.parentName;
-            sc.depth = ifSc.depth - 1;
-            scope.instructions.resize(i + 1);
-            _preprocessIf(restName);
-        }
-    }
-}
+// void X86_64Translator::_preprocessIf(const std::string& name) {
+//     auto& scope = _pdata.scopes[name];
+//     for (size_t i = 0; i < scope.instructions.size(); ++i) {
+//         auto& line = scope.instructions[i];
+//         if (line.inst == "if") {
+//             auto it = scope.instructions.begin() + i + 1;
+//             std::string restName = "L_bslc_rest_" + line.attachedScope.value().substr(10);
+//             auto& sc = _pdata.scopes[restName];
+//             auto ifSc = _pdata.scopes[line.attachedScope.value()];
+//             sc.instructions = std::vector(it, scope.instructions.end());
+//             sc.parentName = ifSc.parentName;
+//             sc.depth = ifSc.depth - 1;
+//             scope.instructions.resize(i + 1);
+//             _preprocessIf(restName);
+//         }
+//     }
+// }
 
-void X86_64Translator::_preprocessLoops() {
-    size_t loopCount = 0;
-    std::vector<std::string> scopeNames;  // create a copy to iterate
+// void X86_64Translator::_preprocessLoops() {
+//     size_t loopCount = 0;
+//     std::vector<std::string> scopeNames;  // create a copy to iterate
 
-    for (const auto& p : _pdata.scopes) {
-        if (startswith(p.first, "L_bslc_loop_")) {
-            ++loopCount;
-        }
-        scopeNames.push_back(p.first);
-    }
+//     for (const auto& p : _pdata.scopes) {
+//         if (startswith(p.first, "L_bslc_loop_")) {
+//             ++loopCount;
+//         }
+//         scopeNames.push_back(p.first);
+//     }
 
-    for (size_t i = 0; i < loopCount; ++i) {
-        auto name = "L_bslc_exit_" + std::to_string(i);
-        _pdata.scopes[name] = {.name = name};
-    }
+//     for (size_t i = 0; i < loopCount; ++i) {
+//         auto name = "L_bslc_exit_" + std::to_string(i);
+//         _pdata.scopes[name] = {.name = name};
+//     }
 
-    for (const auto& name : scopeNames) {
-        _preprocessLoop(name);
-    }
-}
+//     for (const auto& name : scopeNames) {
+//         _preprocessLoop(name);
+//     }
+// }
 
-// TODO: crawl labels inside loops, add jmp to loop label everywhere
-//
+// // TODO: crawl labels inside loops, add jmp to loop label everywhere
+// //
 
-void X86_64Translator::_preprocessLoop(const std::string& name) {
-    auto& scope = _pdata.scopes[name];
-    for (size_t i = 0; i < scope.instructions.size(); ++i) {
-        auto& line = scope.instructions[i];
-        if (line.inst == "loop") {
-            auto it = scope.instructions.begin() + i + 1;
-            std::string exitName = "L_bslc_exit_" + line.attachedScope.value().substr(12);
-            auto& sc = _pdata.scopes[exitName];
-            auto lpSc = _pdata.scopes[line.attachedScope.value()];
-            sc.instructions = std::vector(it, scope.instructions.end());
-            sc.parentName = lpSc.parentName;
-            sc.depth = lpSc.depth - 1;
-            scope.instructions.resize(i + 1);
-            _preprocessLoop(exitName);
-        }
-    }
-}
+// void X86_64Translator::_preprocessLoop(const std::string& name) {
+//     auto& scope = _pdata.scopes[name];
+//     for (size_t i = 0; i < scope.instructions.size(); ++i) {
+//         auto& line = scope.instructions[i];
+//         if (line.inst == "loop") {
+//             auto it = scope.instructions.begin() + i + 1;
+//             std::string exitName = "L_bslc_exit_" + line.attachedScope.value().substr(12);
+//             auto& sc = _pdata.scopes[exitName];
+//             auto lpSc = _pdata.scopes[line.attachedScope.value()];
+//             sc.instructions = std::vector(it, scope.instructions.end());
+//             sc.parentName = lpSc.parentName;
+//             sc.depth = lpSc.depth - 1;
+//             scope.instructions.resize(i + 1);
+//             _preprocessLoop(exitName);
+//         }
+//     }
+// }
 
-void X86_64Translator::_postprocessLoops() {}
-void X86_64Translator::_postprocessLoop(const std::string& labelName) {}
+// void X86_64Translator::_postprocessLoops() {}
+// void X86_64Translator::_postprocessLoop(const std::string& labelName) {}
 
 std::string X86_64Translator::_resolveEnding(CodeLines& label, const Scope& sc) {
     auto& lastLine = label[label.lines.size() - 1];
-    auto name = label[0].substr(0, label[0].find(':'));
+    // auto name = label[0].substr(0, label[0].find(':'));
     auto trimmedLL = trim(lastLine, ' ');
-    std::cout << name << " " << trimmedLL << std::endl;
     if (trimmedLL == "ret" || startswith(trimmedLL, "jmp")) {
         return "";
     }
-    if (startswith(name, "L_bslc_if_")) {
-        return "jmp " + getRestName(name);
+    // if (startswith(name, "L_bslc_if_")) {
+    //     return "jmp " + getRestName(name);
+    // }
+    // if (startswith(name, "L_bslc_loop_")) {
+    //     return "jmp " + name;
+    // }
+    // if (startswith(name, "L_bslc_rest_") && startswith(sc.parentName, "L_bslc_if_")) {
+    //     return "jmp " + getRestName(sc.parentName);
+    // }
+    // if (startswith(name, "L_bslc_exit_") && startswith(sc.parentName, "L_bslc_if_")) {
+    //     return "jmp " + getRestName(sc.parentName);
+    // }
+    // if(lastLine)
+    if (sc.loopName != "") {
+        return "";
+    } else {
+        std::string next = _findLowerScope(sc.name);
+        if (next == "glb")
+            return "ret";
+        return "jmp " + next;
     }
-    if (startswith(name, "L_bslc_loop_")) {
-        return "jmp " + name;
-    }
-    if (startswith(name, "L_bslc_rest_") && startswith(sc.parentName, "L_bslc_if_")) {
-        return "jmp " + getRestName(sc.parentName);
-    }
-    if (startswith(name, "L_bslc_exit_") && startswith(sc.parentName, "L_bslc_if_")) {
-        return "jmp " + getRestName(sc.parentName);
-    }
+
     return "ret";
 }
 
-void printScope(Scope& s) {
-    std::cout << "\n\nScope " << s.name << ", depth=" << s.depth << ", parent=" << s.parentName
-              << std::endl;
-    for (auto& inst : s.instructions) {
-        std::cout << inst.lineNumber << "| " << inst.inst << " ";
-        for (auto& arg : inst.args) {
-            std::cout << arg << ", ";
+std::string X86_64Translator::_findLowerScope(const std::string& from) {
+    ssize_t fromIndex = -1;
+    for (size_t i = 0; i < _pdata.order.size(); ++i) {
+        auto sc = _pdata.order[i];
+        if (sc->extrn)
+            continue;
+        if (sc->name == from) {
+            fromIndex = i;
+            continue;
         }
-        if (inst.attachedScope.has_value()) {
-            std::cout << " -> " << inst.attachedScope.value();
-        }
-        std::cout << std::endl;
+        if (fromIndex == -1)
+            continue;
+        if ((sc->depth <= _pdata.order[fromIndex]->depth) && (!startswith(sc->name, "p_")))
+            return sc->name;
     }
-}
+    if (fromIndex == -1)
+        throw std::runtime_error("Compiler bug: no scope named " + from);
 
-void printPdata(ProgramData& pdata) {
-    for (auto& d : pdata.decls) {
-        std::cout << "Declaration " << d.second.type << " " << d.second.name << " = "
-                  << d.second.value << std::endl;
-    }
-
-    std::cout << "Total scopes - " << pdata.scopes.size() << std::endl;
-
-    for (auto& p : pdata.scopes) {
-        printScope(p.second);
-    }
+    return "glb";
 }
 
 X86_64Translator::X86_64Translator(const ProgramData& pdata, const std::string& srcFilename)
@@ -235,9 +237,8 @@ std::string X86_64Translator::translate() {
     if (_translated)
         return _asm;
 
-    _preprocessIfs();
-    _preprocessLoops();
-    printPdata(_pdata);
+    //_preprocessIfs();
+    //_preprocessLoops();
 
     _makeSecData();
     _makeSecText();
