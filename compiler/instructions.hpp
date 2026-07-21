@@ -22,11 +22,13 @@ struct InstContext {
 
     const std::map<std::string, Decl>& decls;
     const std::map<std::string, Scope>& scopes;
+    const std::vector<Scope*>& order;
 
     explicit InstContext(const std::vector<std::string>& instArgs,
                          std::optional<std::string> attachedScope, size_t depth, size_t lineNum,
                          const std::string& filename, const std::map<std::string, Decl>& decls,
-                         const std::map<std::string, Scope>& scopes, const std::string& scopeName);
+                         const std::map<std::string, Scope>& scopes, const std::string& scopeName,
+                         const std::vector<Scope*>& order);
 
     void throwErr(const std::string& reason);
 };

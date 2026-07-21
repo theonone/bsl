@@ -47,7 +47,8 @@ std::string& CodeLines::operator[](size_t index) {
 InstContext::InstContext(const std::vector<std::string>& instArgs,
                          std::optional<std::string> attachedScope, size_t depth, size_t lineNum,
                          const std::string& filename, const std::map<std::string, Decl>& decls,
-                         const std::map<std::string, Scope>& scopes, const std::string& scopeName)
+                         const std::map<std::string, Scope>& scopes, const std::string& scopeName,
+                         const std::vector<Scope*>& order)
     : instArgs(instArgs),
       attachedScope(attachedScope),
       depth(depth),
@@ -55,7 +56,8 @@ InstContext::InstContext(const std::vector<std::string>& instArgs,
       filename(filename),
       decls(decls),
       scopes(scopes),
-      scopeName(scopeName) {}
+      scopeName(scopeName),
+      order(order) {}
 
 void InstContext::throwErr(const std::string& reason) {
     throw CodeError(reason, filename, lineNumber);
@@ -247,12 +249,31 @@ std::string cond(InstContext& ctx) {
     code += "jnz " + ctx.attachedScope.value();
     return code.toString();
 }
+
+std::string loopExit(const std::string& loopName, InstContext& ctx) {
+    ssize_t depth = -1;
+    for (size_t i = 0; i < ctx.order.size(); ++i) {
+        auto ptr = ctx.order[i];
+        if (ptr->loopName == loopName && depth == -1) {
+            depth = ptr->depth;
+        } else if (depth != -1 && ptr->depth < depth) {
+            return ctx.order[i]->name;
+        }
+    }
+    if (depth == -1)
+        throw std::runtime_error("Compiler bug: loop doesn't exist");
+    return "glb";
+}
+
+// TODO: pass loop name normally
 std::string brk(InstContext& ctx) {
     assertCount(ctx, 0);
-    // if (!startswith(ctx.scopeName, "L_bslc_loop_")) {
-    //     ctx.throwErr("The \"break\" instruction can only be used to interrupt a loop");
-    // }
-    return ctx.indent + "ret";
+    auto ex = loopExit(ctx.scopes.find(ctx.scopeName)->second.loopName, ctx);
+    if (ex == "glb") {
+        return ctx.indent + "ret";
+    }
+
+    return ctx.indent + "jmp " + ex;
 }
 std::string ret(InstContext& ctx) { return "  ret"; }
 }  // namespace bsl

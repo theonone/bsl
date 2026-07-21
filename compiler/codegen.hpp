@@ -21,7 +21,7 @@ class X86_64Translator {
     void _makeLabel(const std::string& scopeName);
 
     std::string _translateInstruction(const Instruction& inst);
-
+    std::string _lastScopeOfLoop(const std::string& loopName);
     // void _preprocessIfs();
     // void _preprocessIf(const std::string& name);
     // void _preprocessLoops();

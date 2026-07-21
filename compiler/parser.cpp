@@ -109,6 +109,7 @@ void BSLParser::_parse2() {
             }
             auto& scope = _pdata.scopes[currScope];
             if (line.depth == currDepth) {
+                line.scope = currScope;
                 scope.instructions.push_back(line);
                 continue;
             }
@@ -135,6 +136,7 @@ void BSLParser::_parse2() {
                     .name = currScope, .depth = currDepth, .loopName = loopName};
                 _pdata.order.push_back(&_pdata.scopes[currScope]);
                 lastLine.attachedScope = currScope;
+                line.scope = currScope;
                 _pdata.scopes[currScope].instructions.push_back(line);
                 continue;
             }
@@ -143,6 +145,15 @@ void BSLParser::_parse2() {
                 if (!loops.empty()) {
                     loopName = loops.top().beginName;
                     if (line.depth < loops.top().depth) {
+                        if (currDepth != loops.top().depth) {
+                            // create empty loop beginning jump scope
+                            auto tempName = "L" + std::to_string(labelCount++);
+
+                            size_t tempDepth = loops.top().depth;
+                            _pdata.scopes[tempName] = {
+                                .name = tempName, .depth = tempDepth, .loopName = loopName};
+                            _pdata.order.push_back(&_pdata.scopes[tempName]);
+                        }
                         loops.pop();
                         if (loops.empty()) {
                             loopName = "";
@@ -156,6 +167,7 @@ void BSLParser::_parse2() {
                 _pdata.scopes[currScope] = {
                     .name = currScope, .depth = currDepth, .loopName = loopName};
                 _pdata.order.push_back(&_pdata.scopes[currScope]);
+                line.scope = currScope;
                 _pdata.scopes[currScope].instructions.push_back(line);
                 continue;
             }
@@ -325,7 +337,6 @@ ProgramData BSLParser::parse() {
         return _pdata;
     _parse2();
 
-    printPdata(_pdata);
     _parsed = true;
     return _pdata;
 

@@ -57,7 +57,7 @@ void X86_64Translator::_makeLabel(const std::string& scopeName) {
 
 std::string X86_64Translator::_translateInstruction(const Instruction& inst) {
     InstContext ctx = InstContext(inst.args, inst.attachedScope, inst.depth, inst.lineNumber, _src,
-                                  _pdata.decls, _pdata.scopes, inst.scope);
+                                  _pdata.decls, _pdata.scopes, inst.scope, _pdata.order);
     std::string translation;
     if (inst.inst == "add") {
         translation = bsl::add(ctx);
@@ -177,6 +177,21 @@ std::string X86_64Translator::_translateInstruction(const Instruction& inst) {
 // void X86_64Translator::_postprocessLoops() {}
 // void X86_64Translator::_postprocessLoop(const std::string& labelName) {}
 
+std::string X86_64Translator::_lastScopeOfLoop(const std::string& loopName) {
+    ssize_t depth = -1;
+    for (size_t i = 0; i < _pdata.order.size(); ++i) {
+        auto ptr = _pdata.order[i];
+        if (ptr->loopName == loopName && depth == -1) {
+            depth = ptr->depth;
+        } else if (depth != -1 && ptr->depth < depth) {
+            return _pdata.order[i - 1]->name;
+        }
+    }
+    if (depth == -1)
+        throw std::runtime_error("Compiler bug: loop doesn't exist");
+    return _pdata.order[_pdata.order.size() - 1]->name;
+}
+
 std::string X86_64Translator::_resolveEnding(CodeLines& label, const Scope& sc) {
     auto& lastLine = label[label.lines.size() - 1];
     // auto name = label[0].substr(0, label[0].find(':'));
@@ -197,13 +212,13 @@ std::string X86_64Translator::_resolveEnding(CodeLines& label, const Scope& sc) 
     //     return "jmp " + getRestName(sc.parentName);
     // }
     // if(lastLine)
-    if (sc.loopName != "") {
-        return "";
+    std::string lower = _findLowerScope(sc.name);
+    if ((sc.loopName != "" && _lastScopeOfLoop(sc.loopName) == sc.name)) {
+        return "jmp " + sc.loopName;
     } else {
-        std::string next = _findLowerScope(sc.name);
-        if (next == "glb")
+        if (lower == "glb")
             return "ret";
-        return "jmp " + next;
+        return "jmp " + lower;
     }
 
     return "ret";
