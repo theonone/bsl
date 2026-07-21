@@ -232,9 +232,9 @@ std::string eq(InstContext& ctx) {
     return code.toString();
 }
 std::string loop(InstContext& ctx) {
+    assertCount(ctx, 0);
     CodeLines lines(ctx);
-    lines += "mov qword[d_print_u64_arg], 1006";
-    lines += "call p_print_u64";
+    lines += "jmp " + ctx.attachedScope.value();
     return lines.toString();
 }
 std::string cond(InstContext& ctx) {

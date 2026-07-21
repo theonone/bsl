@@ -24,6 +24,11 @@ class X86_64Translator {
 
     void _preprocessIfs();
     void _preprocessIf(const std::string& name);
+    void _preprocessLoops();
+    void _preprocessLoop(const std::string& name);
+    void _postprocessLoops();
+    void _postprocessLoop(const std::string& labelName);
+
     std::string _resolveEnding(CodeLines& label, const Scope& sc);
 
    public:

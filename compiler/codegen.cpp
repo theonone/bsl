@@ -114,9 +114,6 @@ void X86_64Translator::_preprocessIfs() {
     }
 }
 
-// if in rest & parent is if_# -> jump into rest_#
-// if in rest & parent is p_... -> ret
-
 void X86_64Translator::_preprocessIf(const std::string& name) {
     auto& scope = _pdata.scopes[name];
     for (size_t i = 0; i < scope.instructions.size(); ++i) {
@@ -135,6 +132,51 @@ void X86_64Translator::_preprocessIf(const std::string& name) {
     }
 }
 
+void X86_64Translator::_preprocessLoops() {
+    size_t loopCount = 0;
+    std::vector<std::string> scopeNames;  // create a copy to iterate
+
+    for (const auto& p : _pdata.scopes) {
+        if (startswith(p.first, "L_bslc_loop_")) {
+            ++loopCount;
+        }
+        scopeNames.push_back(p.first);
+    }
+
+    for (size_t i = 0; i < loopCount; ++i) {
+        auto name = "L_bslc_exit_" + std::to_string(i);
+        _pdata.scopes[name] = {.name = name};
+    }
+
+    for (const auto& name : scopeNames) {
+        _preprocessLoop(name);
+    }
+}
+
+// TODO: crawl labels inside loops, add jmp to loop label everywhere
+//
+
+void X86_64Translator::_preprocessLoop(const std::string& name) {
+    auto& scope = _pdata.scopes[name];
+    for (size_t i = 0; i < scope.instructions.size(); ++i) {
+        auto& line = scope.instructions[i];
+        if (line.inst == "loop") {
+            auto it = scope.instructions.begin() + i + 1;
+            std::string exitName = "L_bslc_exit_" + line.attachedScope.value().substr(12);
+            auto& sc = _pdata.scopes[exitName];
+            auto lpSc = _pdata.scopes[line.attachedScope.value()];
+            sc.instructions = std::vector(it, scope.instructions.end());
+            sc.parentName = lpSc.parentName;
+            sc.depth = lpSc.depth - 1;
+            scope.instructions.resize(i + 1);
+            _preprocessLoop(exitName);
+        }
+    }
+}
+
+void X86_64Translator::_postprocessLoops() {}
+void X86_64Translator::_postprocessLoop(const std::string& labelName) {}
+
 std::string X86_64Translator::_resolveEnding(CodeLines& label, const Scope& sc) {
     auto& lastLine = label[label.lines.size() - 1];
     auto name = label[0].substr(0, label[0].find(':'));
@@ -146,7 +188,13 @@ std::string X86_64Translator::_resolveEnding(CodeLines& label, const Scope& sc) 
     if (startswith(name, "L_bslc_if_")) {
         return "jmp " + getRestName(name);
     }
+    if (startswith(name, "L_bslc_loop_")) {
+        return "jmp " + name;
+    }
     if (startswith(name, "L_bslc_rest_") && startswith(sc.parentName, "L_bslc_if_")) {
+        return "jmp " + getRestName(sc.parentName);
+    }
+    if (startswith(name, "L_bslc_exit_") && startswith(sc.parentName, "L_bslc_if_")) {
         return "jmp " + getRestName(sc.parentName);
     }
     return "ret";
@@ -188,6 +236,7 @@ std::string X86_64Translator::translate() {
         return _asm;
 
     _preprocessIfs();
+    _preprocessLoops();
     printPdata(_pdata);
 
     _makeSecData();
