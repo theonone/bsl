@@ -202,7 +202,8 @@ void BSLParser::_validateName(const std::string& name, size_t lineNum) {
 }
 
 void BSLParser::_validateType(const std::string& type, size_t lineNum) {
-    const std::vector<std::string> validTypes = {"b8", "b16", "b32", "b64"};
+    const std::vector<std::string> validTypes = {"i8", "i16", "i32", "i64",
+                                                 "u8", "u16", "u32", "u64"};
     for (const auto& t : validTypes) {
         if (type == t)
             return;

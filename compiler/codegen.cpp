@@ -87,6 +87,18 @@ std::string X86_64Translator::_translateInstruction(const Instruction& inst) {
         translation = bsl::or_bin(ctx);
     } else if (inst.inst == "xor") {
         translation = bsl::xor_bin(ctx);
+    } else if (inst.inst == "gt") {
+        translation = bsl::gt(ctx);
+    } else if (inst.inst == "gte") {
+        translation = bsl::gte(ctx);
+    } else if (inst.inst == "lt") {
+        translation = bsl::lt(ctx);
+    } else if (inst.inst == "lte") {
+        translation = bsl::lte(ctx);
+    } else if (inst.inst == "div") {
+        translation = bsl::div(ctx);
+    } else if (inst.inst == "mod") {
+        translation = bsl::mod(ctx);
     } else {
         ctx.throwErr("Unrecognized instruction - " + inst.inst);
     }

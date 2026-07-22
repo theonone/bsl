@@ -50,6 +50,8 @@ struct CodeLines {
 std::string add(InstContext& ctx);
 std::string sub(InstContext& ctx);
 std::string mul(InstContext& ctx);
+std::string div(InstContext& ctx);
+std::string mod(InstContext& ctx);
 std::string call(InstContext& ctx);
 std::string and_bin(InstContext& ctx);
 std::string or_bin(InstContext& ctx);
@@ -62,5 +64,9 @@ std::string loop(InstContext& ctx);
 std::string cond(InstContext& ctx);
 std::string brk(InstContext& ctx);
 std::string ret(InstContext& ctx);
+std::string gte(InstContext& ctx);
+std::string gt(InstContext& ctx);
+std::string lte(InstContext& ctx);
+std::string lt(InstContext& ctx);
 
 }  // namespace bsl
