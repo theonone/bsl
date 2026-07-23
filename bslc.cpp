@@ -182,7 +182,8 @@ int main(int argc, char** argv) {
         }
         std::string execFile = (outIndex != -1) ? args[outIndex] : fname;
 
-        std::system(("ld " + objFile + " " + extraLinks + " -o " + execFile).c_str());
+        std::system(("gcc -nostartfiles -no-pie " + objFile + " " + extraLinks + " -o " + execFile)
+                        .c_str());
 
         // clear the /tmp dir later
     } else {

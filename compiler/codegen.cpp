@@ -63,6 +63,8 @@ std::string X86_64Translator::_translateInstruction(const Instruction& inst) {
         translation = bsl::add(ctx);
     } else if (inst.inst == "sub") {
         translation = bsl::sub(ctx);
+    } else if (inst.inst == "mul") {
+        translation = bsl::mul(ctx);
     } else if (inst.inst == "asg") {
         translation = bsl::asg(ctx);
     } else if (inst.inst == "exit") {
@@ -99,6 +101,22 @@ std::string X86_64Translator::_translateInstruction(const Instruction& inst) {
         translation = bsl::div(ctx);
     } else if (inst.inst == "mod") {
         translation = bsl::mod(ctx);
+    } else if (inst.inst == "continue") {
+        translation = bsl::cont(ctx);
+    } else if (inst.inst == "shr") {
+        translation = bsl::shr(ctx);
+    } else if (inst.inst == "shl") {
+        translation = bsl::shl(ctx);
+    } else if (inst.inst == "sar") {
+        translation = bsl::sar(ctx);
+    } else if (inst.inst == "sal") {
+        translation = bsl::sal(ctx);
+    } else if (inst.inst == "addr") {
+        translation = bsl::addr(ctx);
+    } else if (inst.inst == "load") {
+        translation = bsl::load(ctx);
+    } else if (inst.inst == "store") {
+        translation = bsl::store(ctx);
     } else {
         ctx.throwErr("Unrecognized instruction - " + inst.inst);
     }

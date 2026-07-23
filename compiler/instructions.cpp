@@ -238,6 +238,51 @@ ParsedValue processArg(size_t argIndex, uint8_t typeMask, InstContext& ctx) {
     return parsed;
 }
 
+std::string pickReg(ParsedValue& val, std::string reg, InstContext& ctx) {
+    std::vector<std::string> regs = {"rax", "rbx", "rcx", "rdx", "rdi", "rsi"};
+    if (std::find(regs.begin(), regs.end(), reg) == regs.end())
+        ctx.throwErr("Compiler bug: invalid register");
+    if (val.bits == 64) {
+        return reg;
+    }
+    if (val.bits == 32) {
+        reg[0] = 'e';
+        return reg;
+    }
+
+    if (val.bits == 16) {
+        if (reg == "rax")
+            return "ax";
+        if (reg == "rbx")
+            return "bx";
+        if (reg == "rcx")
+            return "cx";
+        if (reg == "rdx")
+            return "dx";
+        if (reg == "rdi")
+            return "di";
+        if (reg == "rsi")
+            return "si";
+    }
+
+    if (val.bits == 8) {
+        if (reg == "rax")
+            return "al";
+        if (reg == "rbx")
+            return "bl";
+        if (reg == "rcx")
+            return "cl";
+        if (reg == "rdx")
+            return "dl";
+        if (reg == "rdi")
+            return "dil";
+        if (reg == "rsi")
+            return "sil";
+    }
+
+    ctx.throwErr("Compiler bug: couldn't match a register to a value");
+}
+
 void assertCount(InstContext& ctx, int from, int to) {
     if (ctx.instArgs.size() > to || ctx.instArgs.size() < from) {
         ctx.throwErr("Expected " + std::to_string(from) + "-" + std::to_string(to) + " args, got " +
@@ -376,6 +421,8 @@ std::string cond(InstContext& ctx) {
 
 std::string loopExit(const std::string& loopName, InstContext& ctx) {
     ssize_t depth = -1;
+    if (loopName == "")
+        ctx.throwErr("Cannot break - not in a loop");
     for (size_t i = 0; i < ctx.order.size(); ++i) {
         auto ptr = ctx.order[i];
         if (ptr->loopName == loopName && depth == -1) {
@@ -432,6 +479,7 @@ std::string mod(InstContext& ctx) {
     code += dumpReg("rdx", arg2.processed, ctx);
     return code.toString();
 }
+
 std::string gte(InstContext& ctx) {
     assertCount(ctx, 3);
     auto arg1 = processArg(0, ATOMS_ALW | DECLS_ALW, ctx);
@@ -507,4 +555,108 @@ std::string lt(InstContext& ctx) {
     code += dumpReg("rcx", arg3.processed, ctx);
     return code.toString();
 }
+
+std::string cont(InstContext& ctx) {
+    assertCount(ctx, 0);
+    auto loop = ctx.scopes.find(ctx.scopeName)->second.loopName;
+    if (loop == "") {
+        ctx.throwErr("Cannot continue - not in a loop");
+    }
+
+    return ctx.indent + "jmp " + loop;
+}
+
+std::string shr(InstContext& ctx) {
+    assertCount(ctx, 2);
+    auto arg1 = processArg(0, ATOMS_ALW | DECLS_ALW, ctx);
+    auto arg2 = processArg(1, DECLS_ALW, ctx);
+    auto reg1 = pickReg(arg1, "rax", ctx);
+    auto reg2 = pickReg(arg2, "rbx", ctx);
+
+    CodeLines code(ctx);
+    code += setReg(reg1, arg1.processed);
+    code += setReg(reg2, arg2.processed);
+    code += "shr " + reg2 + " " + reg1;
+    code += dumpReg(reg2, arg2.processed, ctx);
+    return code.toString();
+}
+std::string shl(InstContext& ctx) {
+    assertCount(ctx, 2);
+    auto arg1 = processArg(0, ATOMS_ALW | DECLS_ALW, ctx);
+    auto arg2 = processArg(1, DECLS_ALW, ctx);
+    auto reg1 = pickReg(arg1, "rax", ctx);
+    auto reg2 = pickReg(arg2, "rbx", ctx);
+
+    CodeLines code(ctx);
+    code += setReg(reg1, arg1.processed);
+    code += setReg(reg2, arg2.processed);
+    code += "shl " + reg2 + " " + reg1;
+    code += dumpReg(reg2, arg2.processed, ctx);
+    return code.toString();
+}
+std::string sar(InstContext& ctx) {
+    assertCount(ctx, 2);
+    auto arg1 = processArg(0, ATOMS_ALW | DECLS_ALW, ctx);
+    auto arg2 = processArg(1, DECLS_ALW, ctx);
+    auto reg1 = pickReg(arg1, "rax", ctx);
+    auto reg2 = pickReg(arg2, "rbx", ctx);
+
+    CodeLines code(ctx);
+    code += setReg(reg1, arg1.processed);
+    code += setReg(reg2, arg2.processed);
+    code += "sar " + reg2 + " " + reg1;
+    code += dumpReg(reg2, arg2.processed, ctx);
+    return code.toString();
+}
+std::string sal(InstContext& ctx) {
+    assertCount(ctx, 2);
+    auto arg1 = processArg(0, ATOMS_ALW | DECLS_ALW, ctx);
+    auto arg2 = processArg(1, DECLS_ALW, ctx);
+    auto reg1 = pickReg(arg1, "rax", ctx);
+    auto reg2 = pickReg(arg2, "rbx", ctx);
+
+    CodeLines code(ctx);
+    code += setReg(reg1, arg1.processed);
+    code += setReg(reg2, arg2.processed);
+    code += "sal " + reg2 + " " + reg1;
+    code += dumpReg(reg2, arg2.processed, ctx);
+    return code.toString();
+}
+
+// load ptr, var
+// var = *ptr
+std::string load(InstContext& ctx) {
+    assertCount(ctx, 2);
+    auto arg1 = processArg(0, DECLS_ALW, ctx);
+    auto arg2 = processArg(1, DECLS_ALW, ctx);
+    CodeLines code(ctx);
+    code += "mov rax, qword [" + arg1.processed + "]";
+    code += "mov rbx, [rax]";
+    code += "mov qword[" + arg2.processed + "], rbx";
+    return code.toString();
+}
+
+// store val, ptr
+// *ptr = val
+std::string store(InstContext& ctx) {
+    assertCount(ctx, 2);
+    auto arg1 = processArg(0, DECLS_ALW | ATOMS_ALW, ctx);
+    auto arg2 = processArg(1, DECLS_ALW, ctx);
+    CodeLines code(ctx);
+    code += "mov rax, qword [" + arg2.processed + "]";
+    code += "mov rbx, qword [" + arg1.processed + "]";
+    code += "mov [rax], rbx";
+    return code.toString();
+}
+
+std::string addr(InstContext& ctx) {
+    assertCount(ctx, 2);
+    auto arg1 = processArg(0, DECLS_ALW, ctx);
+    auto arg2 = processArg(1, DECLS_ALW, ctx);
+    CodeLines code(ctx);
+    code += "lea rax, qword [" + arg1.processed + "]";
+    code += "mov qword [" + arg2.processed + "], rax";
+    return code.toString();
+}
+
 }  // namespace bsl

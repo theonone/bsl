@@ -68,5 +68,13 @@ std::string gte(InstContext& ctx);
 std::string gt(InstContext& ctx);
 std::string lte(InstContext& ctx);
 std::string lt(InstContext& ctx);
+std::string cont(InstContext& ctx);
+std::string shr(InstContext& ctx);
+std::string shl(InstContext& ctx);
+std::string sar(InstContext& ctx);
+std::string sal(InstContext& ctx);
+std::string load(InstContext& ctx);
+std::string store(InstContext& ctx);
+std::string addr(InstContext& ctx);
 
 }  // namespace bsl
