@@ -95,7 +95,7 @@ void BSLParser::_parse2() {
                 std::string declName = "d_" + name;
                 _pdata.decls[declName] = {
                     .name = declName, .type = line.args[1], .line = line.lineNumber, .extrn = true};
-                _validateType(line.args[1], line.lineNumber);
+                _validateType(line.args[1], line.lineNumber, line.args[2]);
                 _pdata.decls[declName].value = _parseValue(line.args[2], line.lineNumber);
             } else {
                 throw CodeError("Invalid extern", _filename, i + 1);
@@ -201,12 +201,16 @@ void BSLParser::_validateName(const std::string& name, size_t lineNum) {
     }
 }
 
-void BSLParser::_validateType(const std::string& type, size_t lineNum) {
+void BSLParser::_validateType(const std::string& type, size_t lineNum, const std::string& val) {
     const std::vector<std::string> validTypes = {"i8", "i16", "i32", "i64",
                                                  "u8", "u16", "u32", "u64"};
     for (const auto& t : validTypes) {
         if (type == t)
             return;
+    }
+    if (val[0] == '\"' && type != "u64") {
+        throw CodeError("Invalid type - addresses need to be stored in u64 decls", _filename,
+                        lineNum + 1);
     }
     throw CodeError("Unknown decl type - " + type, _filename, lineNum + 1);
 }
@@ -230,8 +234,13 @@ std::string BSLParser::_parseValue(const std::string& val, size_t lineNum) {
     if (val == "false" || val == "null")
         return "0";
 
-    if (val[0] == '\"')
-        throw CodeError("Strings are not yet supported", _filename, lineNum);
+    // only used with decls
+    if (val[0] == '\"') {
+        auto cnt = std::to_string(_pdata.strings.size());
+        std::string sName = "s_data_" + cnt;
+        _pdata.strings[sName] = {val};
+        return sName;
+    }
 
     // first symbol is a digit or minus => int
     if ((val[0] < 59 && val[0] > 47) || (val[0] == '-')) {
@@ -273,7 +282,38 @@ Instruction BSLParser::_parseInstruction(size_t lineNumber) {
     if (firstSpace != std::string::npos) {
         inst.inst = cleared.substr(0, firstSpace);
         auto args = cleared.substr(firstSpace);
-        auto vec = split(args, ',', true);
+        // auto vec = split(args, ',', true);
+        std::vector<std::string> vec;
+        size_t pieceBeginning = 0;
+        bool insideStr = false;
+        for (size_t i = 0; i < args.size(); ++i) {
+            if ((args[i] == ',') && !insideStr) {
+                vec.push_back(args.substr(pieceBeginning, i - pieceBeginning));
+                pieceBeginning = i + 1;
+            }
+            if (args[i] == '\"') {
+                size_t offset = 1;
+                bool escaped = false;
+                while (true) {
+                    if (offset > i)
+                        break;
+                    if (args[i - offset] != '\\') {
+                        break;
+                    } else {
+                        escaped = !escaped;
+                        ++offset;
+                    }
+                }
+                if (!escaped) {
+                    insideStr = !insideStr;
+                }
+            }
+        }
+        if (insideStr) {
+            throw CodeError("Invalid string", _filename, lineNumber);
+        }
+        vec.push_back(args.substr(pieceBeginning, args.size() - pieceBeginning));
+
         for (const auto& arg : vec) {
             inst.args.push_back(trim(arg));
         }
@@ -298,7 +338,7 @@ void BSLParser::_addDecl(Instruction inst) {
     _validateName(inst.args[0], inst.lineNumber);
     std::string declName = "d_" + inst.args[0];
     _pdata.decls[declName] = {.name = declName, .type = inst.args[1], .line = inst.lineNumber};
-    _validateType(inst.args[1], inst.lineNumber);
+    _validateType(inst.args[1], inst.lineNumber, inst.args[2]);
     _pdata.decls[declName].value = _parseValue(inst.args[2], inst.lineNumber);
 }
 void printScope(Scope& s) {
@@ -375,7 +415,7 @@ ProgramData BSLParser::parse() {
                 std::string declName = "d_" + name;
                 _pdata.decls[declName] = {
                     .name = declName, .type = line.args[1], .line = line.lineNumber, .extrn = true};
-                _validateType(line.args[1], line.lineNumber);
+                _validateType(line.args[1], line.lineNumber, line.args[2]);
                 _pdata.decls[declName].value = _parseValue(line.args[2], line.lineNumber);
             }
 

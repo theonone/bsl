@@ -12,8 +12,15 @@ void X86_64Translator::_makeSecData() {
     for (auto& decl : _pdata.decls) {
         if (decl.second.extrn)
             continue;
+        if (startswith(decl.second.value, "s_data_")) {
+            _loadStrings[decl.first] = decl.second.value;
+            decl.second.value = "0";
+        }
         _secData += "  " + decl.first + " " + typeToD(decl.second.type, decl.second.line, _src) +
                     " " + decl.second.value + '\n';
+    }
+    for (auto& s : _pdata.strings) {
+        _secData += "  " + s.first + " db " + s.second + ", 0\n";
     }
 }
 
@@ -123,90 +130,6 @@ std::string X86_64Translator::_translateInstruction(const Instruction& inst) {
     return translation;
 }
 
-// void X86_64Translator::_preprocessIfs() {
-//     size_t ifCount = 0;
-//     std::vector<std::string> scopeNames;  // create a copy to iterate
-
-//     for (const auto& p : _pdata.scopes) {
-//         if (startswith(p.first, "L_bslc_if_")) {
-//             ++ifCount;
-//         }
-//         scopeNames.push_back(p.first);
-//     }
-
-//     for (size_t i = 0; i < ifCount; ++i) {
-//         auto name = "L_bslc_rest_" + std::to_string(i);
-//         _pdata.scopes[name] = {.name = name};
-//     }
-
-//     for (const auto& name : scopeNames) {
-//         _preprocessIf(name);
-//     }
-// }
-
-// void X86_64Translator::_preprocessIf(const std::string& name) {
-//     auto& scope = _pdata.scopes[name];
-//     for (size_t i = 0; i < scope.instructions.size(); ++i) {
-//         auto& line = scope.instructions[i];
-//         if (line.inst == "if") {
-//             auto it = scope.instructions.begin() + i + 1;
-//             std::string restName = "L_bslc_rest_" + line.attachedScope.value().substr(10);
-//             auto& sc = _pdata.scopes[restName];
-//             auto ifSc = _pdata.scopes[line.attachedScope.value()];
-//             sc.instructions = std::vector(it, scope.instructions.end());
-//             sc.parentName = ifSc.parentName;
-//             sc.depth = ifSc.depth - 1;
-//             scope.instructions.resize(i + 1);
-//             _preprocessIf(restName);
-//         }
-//     }
-// }
-
-// void X86_64Translator::_preprocessLoops() {
-//     size_t loopCount = 0;
-//     std::vector<std::string> scopeNames;  // create a copy to iterate
-
-//     for (const auto& p : _pdata.scopes) {
-//         if (startswith(p.first, "L_bslc_loop_")) {
-//             ++loopCount;
-//         }
-//         scopeNames.push_back(p.first);
-//     }
-
-//     for (size_t i = 0; i < loopCount; ++i) {
-//         auto name = "L_bslc_exit_" + std::to_string(i);
-//         _pdata.scopes[name] = {.name = name};
-//     }
-
-//     for (const auto& name : scopeNames) {
-//         _preprocessLoop(name);
-//     }
-// }
-
-// // TODO: crawl labels inside loops, add jmp to loop label everywhere
-// //
-
-// void X86_64Translator::_preprocessLoop(const std::string& name) {
-//     auto& scope = _pdata.scopes[name];
-//     for (size_t i = 0; i < scope.instructions.size(); ++i) {
-//         auto& line = scope.instructions[i];
-//         if (line.inst == "loop") {
-//             auto it = scope.instructions.begin() + i + 1;
-//             std::string exitName = "L_bslc_exit_" + line.attachedScope.value().substr(12);
-//             auto& sc = _pdata.scopes[exitName];
-//             auto lpSc = _pdata.scopes[line.attachedScope.value()];
-//             sc.instructions = std::vector(it, scope.instructions.end());
-//             sc.parentName = lpSc.parentName;
-//             sc.depth = lpSc.depth - 1;
-//             scope.instructions.resize(i + 1);
-//             _preprocessLoop(exitName);
-//         }
-//     }
-// }
-
-// void X86_64Translator::_postprocessLoops() {}
-// void X86_64Translator::_postprocessLoop(const std::string& labelName) {}
-
 std::string X86_64Translator::_lastScopeOfLoop(const std::string& loopName) {
     ssize_t depth = -1;
     for (size_t i = 0; i < _pdata.order.size(); ++i) {
@@ -229,19 +152,6 @@ std::string X86_64Translator::_resolveEnding(CodeLines& label, const Scope& sc) 
     if (trimmedLL == "ret" || startswith(trimmedLL, "jmp")) {
         return "";
     }
-    // if (startswith(name, "L_bslc_if_")) {
-    //     return "jmp " + getRestName(name);
-    // }
-    // if (startswith(name, "L_bslc_loop_")) {
-    //     return "jmp " + name;
-    // }
-    // if (startswith(name, "L_bslc_rest_") && startswith(sc.parentName, "L_bslc_if_")) {
-    //     return "jmp " + getRestName(sc.parentName);
-    // }
-    // if (startswith(name, "L_bslc_exit_") && startswith(sc.parentName, "L_bslc_if_")) {
-    //     return "jmp " + getRestName(sc.parentName);
-    // }
-    // if(lastLine)
     std::string lower = _findLowerScope(sc.name);
     if ((sc.loopName != "" && _lastScopeOfLoop(sc.loopName) == sc.name)) {
         return "jmp " + sc.loopName;
@@ -275,6 +185,71 @@ std::string X86_64Translator::_findLowerScope(const std::string& from) {
     return "glb";
 }
 
+char toCode(char escaped, const std::string& fname) {
+    char c;
+    switch (escaped) {
+        case 'a':
+            c = 7;
+            break;
+        case 'b':
+            c = 8;
+            break;
+        case 'f':
+            c = 12;
+            break;
+        case 'n':
+            c = 10;
+            break;
+        case 'r':
+            c = 5 + 8;
+            break;
+        case 't':
+            c = 9;
+            break;
+        case 'v':
+            c = 11;
+            break;
+        case '\\':
+            c = 92;
+            break;
+        case '\'':
+            c = 39;
+            break;
+        case '\"':
+            c = 34;
+            break;
+        case '0':
+            c = 0;
+            break;
+        case '?':
+            c = 63;
+            break;
+        default:
+            throw CodeError("Invalid escaped character", fname, -1);
+            break;
+    }
+    return c;
+}
+
+void X86_64Translator::_processStrings() {
+    for (auto& p : _pdata.strings) {
+        if (p.second.find("\\") != std::string::npos) {
+            std::string newString;
+            for (size_t i = 0; i < p.second.size(); ++i) {
+                if (p.second[i] == '\\') {
+                    if (i == p.second.size() - 1)
+                        throw CodeError("Invalid escaping in " + p.second, _src, -1);
+                    newString += "\"," + std::to_string(toCode(p.second[i + 1], _src)) + ",\"";
+                    ++i;
+                } else {
+                    newString += p.second[i];
+                }
+            }
+            p.second = newString;
+        }
+    }
+}
+
 X86_64Translator::X86_64Translator(const ProgramData& pdata, const std::string& srcFilename)
     : _pdata(pdata), _src(srcFilename) {}
 
@@ -285,6 +260,7 @@ std::string X86_64Translator::translate() {
     //_preprocessIfs();
     //_preprocessLoops();
 
+    _processStrings();
     _makeSecData();
     _makeSecText();
 
@@ -299,7 +275,11 @@ std::string X86_64Translator::translate() {
     _asm +=
         "_start:\n"
         "  push rbp\n"
-        "  mov rbp, rsp\n"
+        "  mov rbp, rsp\n";
+    for (const auto& p : _loadStrings) {
+        _asm += "  lea rax, qword[" + p.second + "]\n  mov qword[" + p.first + "], rax\n";
+    }
+    _asm +=
         "  call p_main\n"
         "  mov rsp, rbp\n"
         "  pop rbp\n"

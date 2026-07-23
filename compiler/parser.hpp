@@ -42,6 +42,7 @@ struct ProgramData {
     std::map<std::string, Decl> decls;
     std::map<std::string, Scope> scopes;
     std::vector<Scope*> order;
+    std::map<std::string, std::string> strings;
 };
 
 class BSLParser {
@@ -58,7 +59,7 @@ class BSLParser {
     const std::string _bslcPrefix = "L_bslc_";
 
     void _validateName(const std::string& name, size_t lineNum);
-    void _validateType(const std::string& type, size_t lineNum);
+    void _validateType(const std::string& type, size_t lineNum, const std::string& val);
     std::string _parseValue(const std::string& val, size_t lineNum);
     Instruction _parseInstruction(size_t lineNumber);
 

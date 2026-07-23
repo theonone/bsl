@@ -12,6 +12,7 @@ class X86_64Translator {
     bool _translated = false;
     std::string _secData;
     std::string _secText;
+    std::map<std::string, std::string> _loadStrings;
 
     // assumes the parser has already processed decls
     void _makeSecData();
@@ -32,6 +33,8 @@ class X86_64Translator {
     std::string _resolveEnding(CodeLines& label, const Scope& sc);
 
     std::string _findLowerScope(const std::string& from);
+
+    void _processStrings();
 
    public:
     X86_64Translator(const ProgramData& pdata, const std::string& srcFilename);
