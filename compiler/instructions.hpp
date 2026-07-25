@@ -47,6 +47,22 @@ struct CodeLines {
     std::string& operator[](size_t index);
 };
 
+enum ValKind { ATOM, DECL, PROC };
+
+struct DataType {
+    bool signd;
+    int bits;
+    std::string name;
+};
+
+struct ParsedValue {
+    std::string processed;
+    ValKind kind;
+    DataType type = {};
+
+    ParsedValue(std::string proc, ValKind t) : processed(proc), kind(t) {}
+};
+
 std::string add(InstContext& ctx);
 std::string sub(InstContext& ctx);
 std::string mul(InstContext& ctx);

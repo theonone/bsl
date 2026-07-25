@@ -22,7 +22,7 @@ std::string typeToD(const std::string& type, size_t line, const std::string& fil
 }
 
 std::string bToType(const std::string& bslType, size_t line, const std::string& filename) {
-    return "qword";
+    // return "qword";
     if (bslType == "b8") {
         return "byte";
     }
@@ -38,6 +38,19 @@ std::string bToType(const std::string& bslType, size_t line, const std::string& 
     throw CodeError("Unknown type - " + bslType, filename, line);
 }
 
-std::string getRestName(const std::string& ifName) { return "L_bslc_rest_" + ifName.substr(10); }
+std::string bitsToD(int bits) {
+    switch (bits) {
+        case 8:
+            return "byte";
+        case 16:
+            return "word";
+        case 32:
+            return "dword";
+        case 64:
+            return "qword";
+        default:
+            return "???";
+    }
+}
 
 }  // namespace bsl

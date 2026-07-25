@@ -64,17 +64,6 @@ void InstContext::throwErr(const std::string& reason) {
     throw CodeError(reason, filename, lineNumber);
 }
 
-enum ValType { ATOM, DECL, PROC };
-
-struct ParsedValue {
-    std::string processed;
-    ValType type;
-    bool sgn;
-    uint8_t bits;
-
-    ParsedValue(std::string proc, ValType t) : processed(proc), type(t) {}
-};
-
 // binary mask:
 // if typeMask & 1 - atoms allowed
 // & (1 << 1) - decls allowed
@@ -85,8 +74,7 @@ constexpr uint8_t ATOMS_ALW = 1;
 constexpr uint8_t DECLS_ALW = 1 << 1;
 constexpr uint8_t PROCS_ALW = 1 << 2;
 
-ParsedValue _processArg(size_t argIndex, uint8_t typeMask, InstContext& ctx) {
-    const std::string& arg = ctx.instArgs[argIndex];
+ParsedValue _processArg(const std::string& arg, uint8_t typeMask, InstContext& ctx) {
     if (typeMask & 1) {
         if (isNumber(arg)) {
             return {arg, ATOM};
@@ -176,25 +164,28 @@ ParsedValue _processArg(size_t argIndex, uint8_t typeMask, InstContext& ctx) {
     std::string s = types.size() > 2 ? ", " : " ";
     expected = join(types, s);
 
-    ctx.throwErr("Invalid argument #" + std::to_string(argIndex + 1) + "(\"" + arg +
-                 "\") - expected " + expected);
+    ctx.throwErr("Invalid argument - \"" + arg + "\" - expected " + expected);
 }
 
-ParsedValue processArg(size_t argIndex, uint8_t typeMask, InstContext& ctx) {
-    ParsedValue parsed = _processArg(argIndex, typeMask, ctx);
-    if (parsed.type == ATOM) {
+ParsedValue processArgStr(const std::string& arg, uint8_t typeMask, InstContext& ctx) {
+    ParsedValue parsed = _processArg(arg, typeMask, ctx);
+    if (parsed.kind == ATOM) {
         if (parsed.processed[0] == '-') {
-            parsed.sgn = true;
+            parsed.type.signd = true;
             try {
                 int64_t v = std::stoll(parsed.processed);
                 if (v >= INT8_MIN && v <= INT8_MAX) {
-                    parsed.bits = 8;
+                    parsed.type.bits = 8;
+                    parsed.type.name = "i8";
                 } else if (v >= INT16_MIN && v <= INT16_MAX) {
-                    parsed.bits = 16;
+                    parsed.type.bits = 16;
+                    parsed.type.name = "i16";
                 } else if (v >= INT32_MIN && v <= INT32_MAX) {
-                    parsed.bits = 32;
+                    parsed.type.bits = 32;
+                    parsed.type.name = "i32";
                 } else if (v >= INT64_MIN && v <= INT64_MAX) {
-                    parsed.bits = 64;
+                    parsed.type.bits = 64;
+                    parsed.type.name = "i64";
                 } else {
                     ctx.throwErr("Value out of 64-bit range");
                 }
@@ -204,53 +195,63 @@ ParsedValue processArg(size_t argIndex, uint8_t typeMask, InstContext& ctx) {
                 ctx.throwErr("Value out of 64-bit range");
             }
         } else {
-            parsed.sgn = false;
+            parsed.type.signd = false;
             try {
                 uint64_t v = std::stoull(parsed.processed);
                 if (v <= UINT8_MAX) {
-                    parsed.bits = 8;
+                    parsed.type.bits = 8;
+                    parsed.type.name = "u8";
                 } else if (v <= UINT16_MAX) {
-                    parsed.bits = 16;
+                    parsed.type.bits = 16;
+                    parsed.type.name = "u16";
                 } else if (v <= UINT32_MAX) {
-                    parsed.bits = 32;
+                    parsed.type.bits = 32;
+                    parsed.type.name = "u32";
                 } else if (v <= UINT64_MAX) {
-                    parsed.bits = 64;
+                    parsed.type.bits = 64;
+                    parsed.type.name = "u64";
                 } else {
                     ctx.throwErr("Value out of 64-bit range");
                 }
             } catch (const std::invalid_argument&) {
-                ctx.throwErr("Compiler bug - value is convertible to a numeric one");
+                ctx.throwErr("Compiler bug - value is not convertible to a numeric one");
             } catch (const std::out_of_range&) {
                 ctx.throwErr("Value out of 64-bit range");
             }
         }
 
-    } else if (parsed.type == DECL) {
+    } else if (parsed.kind == DECL) {
         auto decl = (*(ctx.decls.find(parsed.processed))).second;
-        parsed.sgn = (decl.type[0] == 'i');
+        parsed.type.signd = (decl.type[0] == 'i');
         try {
-            parsed.bits = std::stoi(decl.type.substr(1));
+            parsed.type.bits = std::stoi(decl.type.substr(1));
         } catch (const std::invalid_argument&) {
             ctx.throwErr("Compiler bug - can't extract bits out of type");
         }
+        parsed.type.name = decl.type;
 
     }  // no signed-ness or bit size in procedures
+
     return parsed;
 }
 
-std::string pickReg(ParsedValue& val, std::string reg, InstContext& ctx) {
+ParsedValue processArg(size_t argIndex, uint8_t typeMask, InstContext& ctx) {
+    return processArgStr(ctx.instArgs[argIndex], typeMask, ctx);
+}
+
+std::string pickReg(int bits, std::string reg, InstContext& ctx) {
     std::vector<std::string> regs = {"rax", "rbx", "rcx", "rdx", "rdi", "rsi"};
     if (std::find(regs.begin(), regs.end(), reg) == regs.end())
         ctx.throwErr("Compiler bug: invalid register");
-    if (val.bits == 64) {
+    if (bits == 64) {
         return reg;
     }
-    if (val.bits == 32) {
+    if (bits == 32) {
         reg[0] = 'e';
         return reg;
     }
 
-    if (val.bits == 16) {
+    if (bits == 16) {
         if (reg == "rax")
             return "ax";
         if (reg == "rbx")
@@ -265,7 +266,7 @@ std::string pickReg(ParsedValue& val, std::string reg, InstContext& ctx) {
             return "si";
     }
 
-    if (val.bits == 8) {
+    if (bits == 8) {
         if (reg == "rax")
             return "al";
         if (reg == "rbx")
@@ -280,7 +281,8 @@ std::string pickReg(ParsedValue& val, std::string reg, InstContext& ctx) {
             return "sil";
     }
 
-    ctx.throwErr("Compiler bug: couldn't match a register to a value");
+    ctx.throwErr("Compiler bug: couldn't match a register to a value (" + std::to_string(bits) +
+                 " bits)");
 }
 
 void assertCount(InstContext& ctx, int from, int to) {
@@ -297,21 +299,24 @@ void assertCount(InstContext& ctx, int count) {
     }
 }
 
-std::string setReg(const std::string& reg, const std::string& val) {
-    if (val[0] == 'd') {
-        return "mov " + reg + ", [" + val + "]\n";
+std::string setReg(const std::string& reg, ParsedValue& val, InstContext& ctx) {
+    if (val.kind == DECL) {
+        std::string inst = "mov ";
+        if ((val.type.bits) < 64) {
+            inst = (val.type.signd ? "movsx " : "movzx ");
+        }
+        return inst + reg + ", " + bitsToD(val.type.bits) + " [" + val.processed + "]\n";
     } else {
-        return "mov " + reg + ", " + val + "\n";
+        return "mov " + reg + ", " + val.processed + "\n";
     }
 }
 
-std::string dumpReg(const std::string& reg, const std::string& name, InstContext& ctx) {
-    auto it = ctx.decls.find(name);
-    if (it == ctx.decls.end()) {
-        ctx.throwErr("Couldn't find decl " + name);
-    }
-    return "mov " + bToType((*it).second.type, ctx.lineNumber, ctx.filename) + "[" + name + "], " +
-           reg + '\n';
+std::string dumpReg(const std::string& reg, ParsedValue& decl, InstContext& ctx) {
+    if (decl.kind != DECL)
+        ctx.throwErr("Compiler bug: can only dumpReg into a decl");
+    auto r = pickReg(decl.type.bits, reg, ctx);
+
+    return "mov " + bitsToD(decl.type.bits) + " [" + decl.processed + "], " + r + '\n';
 }
 
 // first arg atom or decl, second decl. loads 1 into rax, 2 into rbx, does "between", dumps rbx into
@@ -321,12 +326,14 @@ std::string mutSecond(InstContext& ctx, std::string between) {
     auto arg1 = processArg(0, ATOMS_ALW | DECLS_ALW, ctx);
     auto arg2 = processArg(1, DECLS_ALW, ctx);
     CodeLines code(ctx);
-    code += setReg("rax", arg1.processed);
-    code += setReg("rbx", arg2.processed);
+    code += setReg("rax", arg1, ctx);
+    code += setReg("rbx", arg2, ctx);
     code += between;
-    code += dumpReg("rbx", arg2.processed, ctx);
+    code += dumpReg("rbx", arg2, ctx);
     return code.toString();
 }
+
+DataType getType(const std::string& name) {}
 
 std::string add(InstContext& ctx) { return mutSecond(ctx, "add rbx, rax"); }
 std::string sub(InstContext& ctx) { return mutSecond(ctx, "sub rbx, rax"); }
@@ -334,21 +341,21 @@ std::string mul(InstContext& ctx) {
     assertCount(ctx, 2);
     auto arg1 = processArg(0, ATOMS_ALW | DECLS_ALW, ctx);
     auto arg2 = processArg(1, DECLS_ALW, ctx);
-    if (arg1.sgn != arg2.sgn)
+    if (arg1.type.signd != arg2.type.signd)
         ctx.throwErr("Cannot multiply values of different signed-ness");
-    if (arg1.sgn) {
+    if (arg1.type.signd) {
         CodeLines code(ctx);
-        code += setReg("rax", arg1.processed);
-        code += setReg("rbx", arg2.processed);
+        code += setReg("rax", arg1, ctx);
+        code += setReg("rbx", arg2, ctx);
         code += "imul rbx, rax";
-        code += dumpReg("rbx", arg2.processed, ctx);
+        code += dumpReg("rbx", arg2, ctx);
         return code.toString();
     }
     CodeLines code(ctx);
-    code += setReg("rax", arg2.processed);
-    code += setReg("rbx", arg1.processed);
+    code += setReg("rax", arg2, ctx);
+    code += setReg("rbx", arg1, ctx);
     code += "mul rbx";
-    code += dumpReg("rax", arg2.processed, ctx);
+    code += dumpReg("rax", arg2, ctx);
     return code.toString();
 }
 std::string call(InstContext& ctx) {
@@ -364,9 +371,9 @@ std::string not_bin(InstContext& ctx) {
     assertCount(ctx, 1);
     auto arg1 = processArg(0, DECLS_ALW, ctx);
     CodeLines code(ctx);
-    code += setReg("rax", arg1.processed);
+    code += setReg("rax", arg1, ctx);
     code += "not rax";
-    code += dumpReg("rax", arg1.processed, ctx);
+    code += dumpReg("rax", arg1, ctx);
     return code.toString();
 }
 std::string xor_bin(InstContext& ctx) { return mutSecond(ctx, "xor rbx, rax"); }
@@ -375,8 +382,8 @@ std::string asg(InstContext& ctx) {
     auto arg1 = processArg(0, ATOMS_ALW | DECLS_ALW, ctx);
     auto arg2 = processArg(1, DECLS_ALW, ctx);
     CodeLines code(ctx);
-    code += setReg("rax", arg1.processed);
-    code += dumpReg("rax", arg2.processed, ctx);
+    code += setReg("rax", arg1, ctx);
+    code += dumpReg("rax", arg2, ctx);
     return code.toString();
 }
 std::string exit_prog(InstContext& ctx) {
@@ -394,12 +401,12 @@ std::string eq(InstContext& ctx) {
     auto arg3 = processArg(2, DECLS_ALW, ctx);
 
     CodeLines code(ctx);
-    code += setReg("rax", arg1.processed);
-    code += setReg("rbx", arg2.processed);
+    code += setReg("rax", arg1, ctx);
+    code += setReg("rbx", arg2, ctx);
     code += "mov rcx, 0";
     code += "cmp rax, rbx";
     code += "sete cl";
-    code += dumpReg("rcx", arg3.processed, ctx);
+    code += dumpReg("rcx", arg3, ctx);
     return code.toString();
 }
 std::string loop(InstContext& ctx) {
@@ -413,7 +420,7 @@ std::string cond(InstContext& ctx) {
     CodeLines code(ctx);
     auto arg1 = processArg(0, ATOMS_ALW | DECLS_ALW, ctx);
 
-    code += setReg("rax", arg1.processed);
+    code += setReg("rax", arg1, ctx);
     code += "test rax, rax";
     code += "jnz " + ctx.attachedScope.value();
     return code.toString();
@@ -452,15 +459,15 @@ std::string div(InstContext& ctx) {
     assertCount(ctx, 2);
     auto arg1 = processArg(0, ATOMS_ALW | DECLS_ALW, ctx);
     auto arg2 = processArg(1, DECLS_ALW, ctx);
-    if (arg1.sgn != arg2.sgn)
+    if (arg1.type.signd != arg2.type.signd)
         ctx.throwErr("Cannot divide values of different signed-ness");
-    std::string inst = (arg1.sgn) ? "idiv" : "div";
+    std::string inst = (arg1.type.signd) ? "idiv" : "div";
     CodeLines code(ctx);
-    code += setReg("rax", arg2.processed);
-    code += setReg("rbx", arg1.processed);
-    code += ((arg1.sgn || arg2.sgn) ? "cqo" : "xor edx, edx");
+    code += setReg("rax", arg2, ctx);
+    code += setReg("rbx", arg1, ctx);
+    code += ((arg1.type.signd || arg2.type.signd) ? "cqo" : "xor edx, edx");
     code += inst + " rbx";
-    code += dumpReg("rax", arg2.processed, ctx);
+    code += dumpReg("rax", arg2, ctx);
     return code.toString();
 }
 
@@ -468,15 +475,15 @@ std::string mod(InstContext& ctx) {
     assertCount(ctx, 2);
     auto arg1 = processArg(0, ATOMS_ALW | DECLS_ALW, ctx);
     auto arg2 = processArg(1, DECLS_ALW, ctx);
-    if (arg1.sgn != arg2.sgn)
+    if (arg1.type.signd != arg2.type.signd)
         ctx.throwErr("Cannot divide values of different signed-ness");
-    std::string inst = (arg1.sgn) ? "idiv" : "div";
+    std::string inst = (arg1.type.signd) ? "idiv" : "div";
     CodeLines code(ctx);
-    code += setReg("rax", arg2.processed);
-    code += setReg("rbx", arg1.processed);
-    code += ((arg1.sgn || arg2.sgn) ? "cqo" : "xor edx, edx");
+    code += setReg("rax", arg2, ctx);
+    code += setReg("rbx", arg1, ctx);
+    code += ((arg1.type.signd || arg2.type.signd) ? "cqo" : "xor edx, edx");
     code += inst + " rbx";
-    code += dumpReg("rdx", arg2.processed, ctx);
+    code += dumpReg("rdx", arg2, ctx);
     return code.toString();
 }
 
@@ -486,16 +493,16 @@ std::string gte(InstContext& ctx) {
     auto arg2 = processArg(1, ATOMS_ALW | DECLS_ALW, ctx);
     auto arg3 = processArg(2, DECLS_ALW, ctx);
 
-    if (arg1.sgn != arg2.sgn)
+    if (arg1.type.signd != arg2.type.signd)
         ctx.throwErr("Cannot compare values of different signed-ness");
 
     CodeLines code(ctx);
-    code += setReg("rax", arg1.processed);
-    code += setReg("rbx", arg2.processed);
+    code += setReg("rax", arg1, ctx);
+    code += setReg("rbx", arg2, ctx);
     code += "mov rcx, 0";
     code += "cmp rax, rbx";
-    code += (arg1.sgn ? "setge cl" : "setae cl");
-    code += dumpReg("rcx", arg3.processed, ctx);
+    code += (arg1.type.signd ? "setge cl" : "setae cl");
+    code += dumpReg("rcx", arg3, ctx);
     return code.toString();
 }
 
@@ -505,16 +512,16 @@ std::string gt(InstContext& ctx) {
     auto arg2 = processArg(1, ATOMS_ALW | DECLS_ALW, ctx);
     auto arg3 = processArg(2, DECLS_ALW, ctx);
 
-    if (arg1.sgn != arg2.sgn)
+    if (arg1.type.signd != arg2.type.signd)
         ctx.throwErr("Cannot compare values of different signed-ness");
 
     CodeLines code(ctx);
-    code += setReg("rax", arg1.processed);
-    code += setReg("rbx", arg2.processed);
+    code += setReg("rax", arg1, ctx);
+    code += setReg("rbx", arg2, ctx);
     code += "mov rcx, 0";
     code += "cmp rax, rbx";
-    code += (arg1.sgn ? "setg cl" : "seta cl");
-    code += dumpReg("rcx", arg3.processed, ctx);
+    code += (arg1.type.signd ? "setg cl" : "seta cl");
+    code += dumpReg("rcx", arg3, ctx);
     return code.toString();
 }
 
@@ -524,16 +531,16 @@ std::string lte(InstContext& ctx) {
     auto arg2 = processArg(1, ATOMS_ALW | DECLS_ALW, ctx);
     auto arg3 = processArg(2, DECLS_ALW, ctx);
 
-    if (arg1.sgn != arg2.sgn)
+    if (arg1.type.signd != arg2.type.signd)
         ctx.throwErr("Cannot compare values of different signed-ness");
 
     CodeLines code(ctx);
-    code += setReg("rax", arg1.processed);
-    code += setReg("rbx", arg2.processed);
+    code += setReg("rax", arg1, ctx);
+    code += setReg("rbx", arg2, ctx);
     code += "mov rcx, 0";
     code += "cmp rax, rbx";
-    code += (arg1.sgn ? "setle cl" : "setbe cl");
-    code += dumpReg("rcx", arg3.processed, ctx);
+    code += (arg1.type.signd ? "setle cl" : "setbe cl");
+    code += dumpReg("rcx", arg3, ctx);
     return code.toString();
 }
 
@@ -543,16 +550,16 @@ std::string lt(InstContext& ctx) {
     auto arg2 = processArg(1, ATOMS_ALW | DECLS_ALW, ctx);
     auto arg3 = processArg(2, DECLS_ALW, ctx);
 
-    if (arg1.sgn != arg2.sgn)
+    if (arg1.type.signd != arg2.type.signd)
         ctx.throwErr("Cannot compare values of different signed-ness");
 
     CodeLines code(ctx);
-    code += setReg("rax", arg1.processed);
-    code += setReg("rbx", arg2.processed);
+    code += setReg("rax", arg1, ctx);
+    code += setReg("rbx", arg2, ctx);
     code += "mov rcx, 0";
     code += "cmp rax, rbx";
-    code += (arg1.sgn ? "setl cl" : "setb cl");
-    code += dumpReg("rcx", arg3.processed, ctx);
+    code += (arg1.type.signd ? "setl cl" : "setb cl");
+    code += dumpReg("rcx", arg3, ctx);
     return code.toString();
 }
 
@@ -570,56 +577,56 @@ std::string shr(InstContext& ctx) {
     assertCount(ctx, 2);
     auto arg1 = processArg(0, ATOMS_ALW | DECLS_ALW, ctx);
     auto arg2 = processArg(1, DECLS_ALW, ctx);
-    auto reg1 = pickReg(arg1, "rax", ctx);
-    auto reg2 = pickReg(arg2, "rbx", ctx);
+    auto reg1 = pickReg(arg1.type.bits, "rax", ctx);
+    auto reg2 = pickReg(arg2.type.bits, "rbx", ctx);
 
     CodeLines code(ctx);
-    code += setReg(reg1, arg1.processed);
-    code += setReg(reg2, arg2.processed);
-    code += "shr " + reg2 + " " + reg1;
-    code += dumpReg(reg2, arg2.processed, ctx);
+    code += setReg("rax", arg1, ctx);
+    code += setReg("rbx", arg2, ctx);
+    code += "shr " + reg2 + ", " + reg1;
+    code += dumpReg("rbx", arg2, ctx);
     return code.toString();
 }
 std::string shl(InstContext& ctx) {
     assertCount(ctx, 2);
     auto arg1 = processArg(0, ATOMS_ALW | DECLS_ALW, ctx);
     auto arg2 = processArg(1, DECLS_ALW, ctx);
-    auto reg1 = pickReg(arg1, "rax", ctx);
-    auto reg2 = pickReg(arg2, "rbx", ctx);
+    auto reg1 = pickReg(arg1.type.bits, "rax", ctx);
+    auto reg2 = pickReg(arg2.type.bits, "rbx", ctx);
 
     CodeLines code(ctx);
-    code += setReg(reg1, arg1.processed);
-    code += setReg(reg2, arg2.processed);
-    code += "shl " + reg2 + " " + reg1;
-    code += dumpReg(reg2, arg2.processed, ctx);
+    code += setReg("rax", arg1, ctx);
+    code += setReg("rbx", arg2, ctx);
+    code += "shl " + reg2 + ", " + reg1;
+    code += dumpReg("rbx", arg2, ctx);
     return code.toString();
 }
 std::string sar(InstContext& ctx) {
     assertCount(ctx, 2);
     auto arg1 = processArg(0, ATOMS_ALW | DECLS_ALW, ctx);
     auto arg2 = processArg(1, DECLS_ALW, ctx);
-    auto reg1 = pickReg(arg1, "rax", ctx);
-    auto reg2 = pickReg(arg2, "rbx", ctx);
+    auto reg1 = pickReg(arg1.type.bits, "rax", ctx);
+    auto reg2 = pickReg(arg2.type.bits, "rbx", ctx);
 
     CodeLines code(ctx);
-    code += setReg(reg1, arg1.processed);
-    code += setReg(reg2, arg2.processed);
-    code += "sar " + reg2 + " " + reg1;
-    code += dumpReg(reg2, arg2.processed, ctx);
+    code += setReg("rax", arg1, ctx);
+    code += setReg("rbx", arg2, ctx);
+    code += "sar " + reg2 + ", " + reg1;
+    code += dumpReg("rbx", arg2, ctx);
     return code.toString();
 }
 std::string sal(InstContext& ctx) {
     assertCount(ctx, 2);
     auto arg1 = processArg(0, ATOMS_ALW | DECLS_ALW, ctx);
     auto arg2 = processArg(1, DECLS_ALW, ctx);
-    auto reg1 = pickReg(arg1, "rax", ctx);
-    auto reg2 = pickReg(arg2, "rbx", ctx);
+    auto reg1 = pickReg(arg1.type.bits, "rax", ctx);
+    auto reg2 = pickReg(arg2.type.bits, "rbx", ctx);
 
     CodeLines code(ctx);
-    code += setReg(reg1, arg1.processed);
-    code += setReg(reg2, arg2.processed);
-    code += "sal " + reg2 + " " + reg1;
-    code += dumpReg(reg2, arg2.processed, ctx);
+    code += setReg("rax", arg1, ctx);
+    code += setReg("rbx", arg2, ctx);
+    code += "sal " + reg2 + ", " + reg1;
+    code += dumpReg("rbx", arg2, ctx);
     return code.toString();
 }
 
@@ -630,9 +637,12 @@ std::string load(InstContext& ctx) {
     auto arg1 = processArg(0, DECLS_ALW, ctx);
     auto arg2 = processArg(1, DECLS_ALW, ctx);
     CodeLines code(ctx);
-    code += "mov rax, qword [" + arg1.processed + "]";
-    code += "mov rbx, [rax]";
-    code += "mov qword[" + arg2.processed + "], rbx";
+    auto valReg = pickReg(arg2.type.bits, "rbx", ctx);
+    auto valD = bitsToD(arg2.type.bits);
+
+    code += "mov rax, qword [" + arg1.processed + "]";  // rax = ptr
+    code += "mov " + valReg + ", " + valD + " [rax]";   // mov bl, byte [str]
+    code += "mov " + valD + " [" + arg2.processed + "], " + valReg;
     return code.toString();
 }
 
@@ -643,9 +653,13 @@ std::string store(InstContext& ctx) {
     auto arg1 = processArg(0, DECLS_ALW | ATOMS_ALW, ctx);
     auto arg2 = processArg(1, DECLS_ALW, ctx);
     CodeLines code(ctx);
+
+    auto valReg = pickReg(arg1.type.bits, "rbx", ctx);
+    auto valD = bitsToD(arg1.type.bits);
     code += "mov rax, qword [" + arg2.processed + "]";
-    code += "mov rbx, qword [" + arg1.processed + "]";
-    code += "mov [rax], rbx";
+    // code += "mov " + valReg + ", " + valD + " [" + arg1.processed + "]";
+    code += setReg("rbx", arg1, ctx);
+    code += "mov " + valD + "[rax], " + valReg;
     return code.toString();
 }
 
