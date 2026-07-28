@@ -435,7 +435,9 @@ std::string loopExit(const std::string& loopName, InstContext& ctx) {
         if (ptr->loopName == loopName && depth == -1) {
             depth = ptr->depth;
         } else if (depth != -1 && ptr->depth < depth) {
-            return ctx.order[i]->name;
+            return (((ctx.order[i]->name)[0] == 'p')
+                        ? "glb"
+                        : ctx.order[i]->name);  // it's never a procedure
         }
     }
     if (depth == -1)

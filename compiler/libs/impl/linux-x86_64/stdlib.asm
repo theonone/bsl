@@ -5,7 +5,7 @@ global p_print_char
 global p_print_char_ptr
 global p_malloc
 global p_free
-
+global p_time
 
 global d_print_u64_arg
 global d_print_char_arg
@@ -13,6 +13,9 @@ global d_print_char_ptr_arg
 global d_malloc_arg
 global d_malloc_ret
 global d_free_arg
+global d_time_ret
+global d_err
+
 
 section .data
     d_print_u64_arg dq 0
@@ -21,10 +24,14 @@ section .data
     d_malloc_arg dq 0
     d_malloc_ret dq 0
     d_free_arg dq 0
+    d_time_ret dq 0
+    d_err dq 0
+
+    time_s_ns dq 0, 0
 
 
 section .bss
-    buffer_22b resb 22
+    buffer_21b resb 21
 
 section .text
 extern malloc
@@ -36,18 +43,17 @@ p_print_u64:
     test rax, rax
     jne .ppu64_convert
 
-    mov byte [buffer_22b + 20], '0'
-    mov byte [buffer_22b + 21], 0x0A 
+    mov byte [buffer_21b + 20], '0'
 
     mov rax, 1    
     mov rdi, 1    
-    lea rsi, [buffer_22b + 20]
-    mov rdx, 2      
+    lea rsi, [buffer_21b + 20]
+    mov rdx, 2 
     syscall
     ret
 
 .ppu64_convert:
-    lea rsi, [buffer_22b + 21]
+    lea rsi, [buffer_21b + 20]
     mov rcx, 10
 
 .ppu64_loop:
@@ -62,25 +68,22 @@ p_print_u64:
     test rax, rax
     jne .ppu64_loop
 
-    mov rdx, buffer_22b + 21
-    sub rdx, rsi                
+    mov rdx, buffer_21b + 20
+    sub rdx, rsi 
 
-    mov byte [rsi + rdx], 0x0A  
-    inc rdx                     
-
-    mov rax, 1        
-    mov rdi, 1       
+    mov rax, 1   
+    mov rdi, 1  
     syscall
 
     ret
 
 p_print_char:
     mov al, [d_print_char_arg]
-    mov [buffer_22b], al
+    mov [buffer_21b], al
 
     mov rax, 1
     mov rdi, 1
-    lea rsi, [buffer_22b]
+    lea rsi, [buffer_21b]
     mov rdx, 1
     syscall
 
@@ -116,4 +119,26 @@ p_malloc:
 p_free:
     mov rdi, [d_free_arg]
     call free
+    ret
+
+p_time:
+    lea rsi, [rel time_s_ns]
+    mov rdi, 1
+    mov rax, 228
+    syscall
+    cmp rax, 0
+    jl set_err
+
+    mov rax, [time_s_ns]
+    mov rbx, [time_s_ns + 8]
+
+    mov rcx, 1000000000
+    mul rcx
+    add rax, rbx
+    
+    mov [d_time_ret], rax
+    ret
+
+set_err:
+    mov [d_err], 1
     ret

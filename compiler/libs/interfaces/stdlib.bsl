@@ -3,14 +3,17 @@ extern decl print_char_arg, u8, 0
 extern decl print_char_ptr_arg, u64, null
 extern decl malloc_arg, u64, 0
 extern decl malloc_ret, u64, 0
-
 extern decl free_arg, u64, null
+extern decl time_ret, u64, 0
+extern decl err, u64, 0
+
+extern decl err, u64, 0
 
 extern proc print_u64
 extern proc print_char
 extern proc print_char_ptr
 extern proc malloc
 extern proc free
-
+extern proc time
 
 link <stdlib.o>

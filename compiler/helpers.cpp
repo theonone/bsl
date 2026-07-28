@@ -5,19 +5,8 @@
 namespace bsl {
 
 std::string typeToD(const std::string& type, size_t line, const std::string& filename) {
-    return "dq";
-    if (type == "b8") {
-        return "db";
-    }
-    if (type == "b16") {
-        return "dw";
-    }
-    if (type == "b32") {
-        return "dd";
-    }
-    if (type == "b64") {
-        return "dq";
-    }
+    int bits = std::stoi(type.substr(1));
+    return std::string("d") + bitsToD(bits)[0];
     throw CodeError("Unknown type - " + type, filename, line);
 }
 
