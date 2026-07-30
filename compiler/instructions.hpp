@@ -1,14 +1,57 @@
 #pragma once
 #include <map>
 #include <optional>
+#include <stack>
 #include <string>
 #include <vector>
 
 #include "parser.hpp"
 
-#define __x86INSTTR(name) std::string name(InstContext ctx)
-
 namespace bsl {
+
+enum ValKind { ATOM, DECL, PROC };
+
+struct DataType {
+    bool signd;
+    int bits;
+    std::string name;
+};
+
+struct ParsedValue {
+    std::string processed;
+    ValKind kind;
+    DataType type = {};
+
+    ParsedValue(std::string proc, ValKind t) : processed(proc), kind(t) {}
+};
+struct BSLVar {
+    std::string name;
+    DataType type;
+
+    size_t scopeDepth;
+    size_t stackOffset;
+
+    BSLVar() = default;
+
+    BSLVar(const std::string& n, DataType t, size_t d);
+};
+
+struct VarStack {
+    std::map<std::string, BSLVar> _varMap;
+    std::stack<std::string> _varStack;
+    std::string _filename;
+    size_t _lineNum;
+
+    void create(BSLVar v);
+
+    const BSLVar& operator[](const std::string& key);
+
+    std::optional<const BSLVar*> get(const std::string& key);
+
+    std::vector<BSLVar> clearToDepth(size_t newDepth);
+
+    void _throwErr(const std::string& reason);
+};
 
 struct InstContext {
     const std::vector<std::string>& instArgs;
@@ -17,18 +60,16 @@ struct InstContext {
     size_t lineNumber;
     const std::string& filename;
     const std::string& scopeName;
+    VarStack& vars;
 
     std::string indent = "  ";
 
-    const std::map<std::string, Decl>& decls;
-    const std::map<std::string, Scope>& scopes;
-    const std::vector<Scope*>& order;
+    ProgramData& pdata;
 
     explicit InstContext(const std::vector<std::string>& instArgs,
                          std::optional<std::string> attachedScope, size_t depth, size_t lineNum,
-                         const std::string& filename, const std::map<std::string, Decl>& decls,
-                         const std::map<std::string, Scope>& scopes, const std::string& scopeName,
-                         const std::vector<Scope*>& order);
+                         const std::string& filename, const std::string& scopeName,
+                         ProgramData& pdata, VarStack& vars);
 
     void throwErr(const std::string& reason);
 };
@@ -47,21 +88,15 @@ struct CodeLines {
     std::string& operator[](size_t index);
 };
 
-enum ValKind { ATOM, DECL, PROC };
+// create var:
+//  sub rsp, size
+//  mov qword[rsp], var_value
 
-struct DataType {
-    bool signd;
-    int bits;
-    std::string name;
-};
+// destroy vars:
+//  add rsp, total_bytes
 
-struct ParsedValue {
-    std::string processed;
-    ValKind kind;
-    DataType type = {};
-
-    ParsedValue(std::string proc, ValKind t) : processed(proc), kind(t) {}
-};
+// addr of:
+// [rbp-(size*stackPos)]
 
 std::string add(InstContext& ctx);
 std::string sub(InstContext& ctx);
@@ -92,5 +127,6 @@ std::string sal(InstContext& ctx);
 std::string load(InstContext& ctx);
 std::string store(InstContext& ctx);
 std::string addr(InstContext& ctx);
+std::string var(InstContext& ctx);
 
 }  // namespace bsl

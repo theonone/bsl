@@ -25,12 +25,14 @@ void X86_64Translator::_makeSecData() {
 }
 
 void X86_64Translator::_makeSecText() {
+    _variables._filename = _src;
     if (_pdata.scopes.find("p_main") == _pdata.scopes.end()) {
         throw CodeError("Procedure \"main\" not found", _src, -1);
     }
 
-    for (const auto& sc : _pdata.order) {
-        _makeLabel(sc->name);
+    for (size_t i = 0; i < _pdata.order.size(); ++i) {
+        _makeLabel(_pdata.order[i],
+                   ((i == _pdata.order.size() - 1) ? nullptr : _pdata.order[i + 1]));
     }
 }
 
@@ -49,23 +51,48 @@ std::string X86_64Translator::_gatherExterns() {
     return lines.toString();
 }
 
-void X86_64Translator::_makeLabel(const std::string& scopeName) {
-    const Scope& scope = _pdata.scopes[scopeName];
-    if (scope.extrn)
+void X86_64Translator::_makeLabel(const Scope* scope, const Scope* next) {
+    if (scope->extrn)
         return;
     CodeLines label("  ");
-    label.addLine(scopeName + ":", true);
-    for (const Instruction& inst : scope.instructions) {
+
+    bool funcEnd =
+        (next == nullptr) ||
+        ((next != nullptr) && (startswith(next->name, "p_") || startswith(next->name, "f_")));
+    label.addLine(scope->name + ":", true);
+    if (startswith(scope->name, "f_") || startswith(scope->name, "p_")) {
+        label += "push rbp";
+        label += "mov rbp, rsp";
+    }
+    for (const Instruction& inst : scope->instructions) {
         label += _translateInstruction(inst);
+    }
+    if (next != nullptr && (next->depth <= scope->depth)) {
+        size_t freed = 0;
+        auto vars = _variables.clearToDepth(next->depth);
+        for (auto& v : vars) {
+            freed += v.type.bits / 8;
+        }
+        if (freed > 0) {
+            label += "add rsp, " +
+                     std::to_string(
+                         freed);  // TODO: have a second look. can size be different from 8 bytes?
+        }
+    }
+    if (funcEnd) {
+        label += "mov rsp, rbp";
+        label += "pop rbp";
     }
     label += _resolveEnding(label, scope);
     _secText += label.toString();
 }
 
 std::string X86_64Translator::_translateInstruction(const Instruction& inst) {
+    _variables._lineNum = inst.lineNumber;
     InstContext ctx = InstContext(inst.args, inst.attachedScope, inst.depth, inst.lineNumber, _src,
-                                  _pdata.decls, _pdata.scopes, inst.scope, _pdata.order);
+                                  inst.scope, _pdata, _variables);
     std::string translation;
+    std::cout << inst.inst << std::endl;
     if (inst.inst == "add") {
         translation = bsl::add(ctx);
     } else if (inst.inst == "sub") {
@@ -124,6 +151,8 @@ std::string X86_64Translator::_translateInstruction(const Instruction& inst) {
         translation = bsl::load(ctx);
     } else if (inst.inst == "store") {
         translation = bsl::store(ctx);
+    } else if (inst.inst == "var") {
+        translation = bsl::var(ctx);
     } else {
         ctx.throwErr("Unrecognized instruction - " + inst.inst);
     }
@@ -145,16 +174,16 @@ std::string X86_64Translator::_lastScopeOfLoop(const std::string& loopName) {
     return _pdata.order[_pdata.order.size() - 1]->name;
 }
 
-std::string X86_64Translator::_resolveEnding(CodeLines& label, const Scope& sc) {
+std::string X86_64Translator::_resolveEnding(CodeLines& label, const Scope* sc) {
     auto& lastLine = label[label.lines.size() - 1];
     // auto name = label[0].substr(0, label[0].find(':'));
     auto trimmedLL = trim(lastLine, ' ');
     if (trimmedLL == "ret" || startswith(trimmedLL, "jmp")) {
         return "";
     }
-    std::string lower = _findLowerScope(sc.name);
-    if ((sc.loopName != "" && _lastScopeOfLoop(sc.loopName) == sc.name)) {
-        return "jmp " + sc.loopName;
+    std::string lower = _findLowerScope(sc->name);
+    if ((sc->loopName != "" && _lastScopeOfLoop(sc->loopName) == sc->name)) {
+        return "jmp " + sc->loopName;
     } else {
         if (lower == "glb")
             return "ret";
@@ -176,7 +205,8 @@ std::string X86_64Translator::_findLowerScope(const std::string& from) {
         }
         if (fromIndex == -1)
             continue;
-        if ((sc->depth <= _pdata.order[fromIndex]->depth) && (!startswith(sc->name, "p_")))
+        if ((sc->depth <= _pdata.order[fromIndex]->depth) && (!startswith(sc->name, "p_")) &&
+            (!startswith(sc->name, "f_")))
             return sc->name;
     }
     if (fromIndex == -1)
@@ -272,17 +302,12 @@ std::string X86_64Translator::translate() {
         "  global _start\n";
     _asm += _gatherExterns();
     _asm += _secText;
-    _asm +=
-        "_start:\n"
-        "  push rbp\n"
-        "  mov rbp, rsp\n";
+    _asm += "_start:\n";
     for (const auto& p : _loadStrings) {
         _asm += "  lea rax, qword[" + p.second + "]\n  mov qword[" + p.first + "], rax\n";
     }
     _asm +=
         "  call p_main\n"
-        "  mov rsp, rbp\n"
-        "  pop rbp\n"
         "  mov rax, 60\n"
         "  xor rdi, rdi\n"
         "  syscall\n";

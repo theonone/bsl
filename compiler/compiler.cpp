@@ -7,10 +7,55 @@
 
 namespace bsl {
 
+void printScope(Scope& s) {
+    std::cout << "\n\nScope " << s.name << ", depth=" << s.depth << ", loop=" << s.loopName
+              << ", parent=" << ((s.parent == nullptr) ? "" : s.parent->name) << std::endl;
+    for (auto& inst : s.instructions) {
+        std::cout << inst.lineNumber << "| " << inst.inst << " ";
+        for (auto& arg : inst.args) {
+            std::cout << arg << ", ";
+        }
+        if (inst.attachedScope.has_value()) {
+            std::cout << " -> " << inst.attachedScope.value();
+        }
+        std::cout << std::endl;
+    }
+}
+
+void printFunc(Func& f) {
+    std::cout << "Func " << f.name << "(";
+    for (auto& arg : f.args) {
+        std::cout << arg.name << ": " << arg.type << ", ";
+    }
+    std::cout << ") -> " << (f.returnType ? f.returnType.value() : "void") << std::endl;
+}
+
+void printPdata(ProgramData& pdata) {
+    for (auto& d : pdata.decls) {
+        std::cout << "Declaration " << d.second.type << " " << d.second.name << " = "
+                  << d.second.value << std::endl;
+    }
+
+    std::cout << "Total scopes - " << pdata.scopes.size() << std::endl;
+    std::cout << "Scope order: " << std::endl;
+    for (auto& p : pdata.order) {
+        std::cout << p->name << ", ";
+    }
+    std::cout << std::endl;
+    for (auto& p : pdata.order) {
+        printScope(*p);
+    }
+    std::cout << "\nFunctions:" << std::endl;
+    for (auto& f : pdata.functions) {
+        printFunc(f);
+    }
+}
+
 std::string compile(const std::string& in, std::vector<std::string>& lines, size_t indent,
                     bool allowTabs, const std::string& os, const std::string& arch) {
     auto parser = BSLParser(in, lines, indent, allowTabs);
     auto prog = parser.parse();
+    printPdata(prog);
 
     if (arch != "x86_64" || os != "linux") {
         throw std::runtime_error("Sorry, currently the compiler can only compile for x86_64 Linux");

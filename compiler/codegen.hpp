@@ -13,13 +13,14 @@ class X86_64Translator {
     std::string _secData;
     std::string _secText;
     std::map<std::string, std::string> _loadStrings;
+    VarStack _variables;
 
     // assumes the parser has already processed decls
     void _makeSecData();
     void _makeSecText();
     std::string _gatherExterns();
 
-    void _makeLabel(const std::string& scopeName);
+    void _makeLabel(const Scope* scope, const Scope* next);
 
     std::string _translateInstruction(const Instruction& inst);
     std::string _lastScopeOfLoop(const std::string& loopName);
@@ -30,7 +31,7 @@ class X86_64Translator {
     // void _postprocessLoops();
     // void _postprocessLoop(const std::string& labelName);
 
-    std::string _resolveEnding(CodeLines& label, const Scope& sc);
+    std::string _resolveEnding(CodeLines& label, const Scope* sc);
 
     std::string _findLowerScope(const std::string& from);
 

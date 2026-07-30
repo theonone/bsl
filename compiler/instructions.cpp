@@ -47,18 +47,16 @@ std::string& CodeLines::operator[](size_t index) {
 
 InstContext::InstContext(const std::vector<std::string>& instArgs,
                          std::optional<std::string> attachedScope, size_t depth, size_t lineNum,
-                         const std::string& filename, const std::map<std::string, Decl>& decls,
-                         const std::map<std::string, Scope>& scopes, const std::string& scopeName,
-                         const std::vector<Scope*>& order)
+                         const std::string& filename, const std::string& scopeName,
+                         ProgramData& pdata, VarStack& vars)
     : instArgs(instArgs),
       attachedScope(attachedScope),
       depth(depth),
       lineNumber(lineNum),
       filename(filename),
-      decls(decls),
-      scopes(scopes),
       scopeName(scopeName),
-      order(order) {}
+      pdata(pdata),
+      vars(vars) {}
 
 void InstContext::throwErr(const std::string& reason) {
     throw CodeError(reason, filename, lineNumber);
@@ -135,14 +133,14 @@ ParsedValue _processArg(const std::string& arg, uint8_t typeMask, InstContext& c
         }
     }
     if (typeMask & (1 << 1)) {
-        auto it = ctx.decls.find("d_" + arg);
-        if (it != ctx.decls.end()) {
+        auto it = ctx.pdata.decls.find("d_" + arg);
+        if (it != ctx.pdata.decls.end()) {
             return {"d_" + arg, DECL};
         }
     }
     if (typeMask & (1 << 2)) {
-        auto it = ctx.scopes.find("p_" + arg);
-        if (it != ctx.scopes.end()) {
+        auto it = ctx.pdata.scopes.find("p_" + arg);
+        if (it != ctx.pdata.scopes.end()) {
             return {"p_" + arg, PROC};
         }
     }
@@ -221,7 +219,7 @@ ParsedValue processArgStr(const std::string& arg, uint8_t typeMask, InstContext&
         }
 
     } else if (parsed.kind == DECL) {
-        auto decl = (*(ctx.decls.find(parsed.processed))).second;
+        auto decl = (*(ctx.pdata.decls.find(parsed.processed))).second;
         parsed.type.signd = (decl.type[0] == 'i');
         try {
             parsed.type.bits = std::stoi(decl.type.substr(1));
@@ -430,14 +428,14 @@ std::string loopExit(const std::string& loopName, InstContext& ctx) {
     ssize_t depth = -1;
     if (loopName == "")
         ctx.throwErr("Cannot break - not in a loop");
-    for (size_t i = 0; i < ctx.order.size(); ++i) {
-        auto ptr = ctx.order[i];
+    for (size_t i = 0; i < ctx.pdata.order.size(); ++i) {
+        auto ptr = ctx.pdata.order[i];
         if (ptr->loopName == loopName && depth == -1) {
             depth = ptr->depth;
         } else if (depth != -1 && ptr->depth < depth) {
-            return (((ctx.order[i]->name)[0] == 'p')
+            return (((ctx.pdata.order[i]->name)[0] == 'p')
                         ? "glb"
-                        : ctx.order[i]->name);  // it's never a procedure
+                        : ctx.pdata.order[i]->name);  // it's never a procedure
         }
     }
     if (depth == -1)
@@ -448,7 +446,7 @@ std::string loopExit(const std::string& loopName, InstContext& ctx) {
 // TODO: pass loop name normally
 std::string brk(InstContext& ctx) {
     assertCount(ctx, 0);
-    auto ex = loopExit(ctx.scopes.find(ctx.scopeName)->second.loopName, ctx);
+    auto ex = loopExit(ctx.pdata.scopes.find(ctx.scopeName)->second.loopName, ctx);
     if (ex == "glb") {
         return ctx.indent + "ret";
     }
@@ -567,7 +565,7 @@ std::string lt(InstContext& ctx) {
 
 std::string cont(InstContext& ctx) {
     assertCount(ctx, 0);
-    auto loop = ctx.scopes.find(ctx.scopeName)->second.loopName;
+    auto loop = ctx.pdata.scopes.find(ctx.scopeName)->second.loopName;
     if (loop == "") {
         ctx.throwErr("Cannot continue - not in a loop");
     }
@@ -662,6 +660,7 @@ std::string store(InstContext& ctx) {
     // code += "mov " + valReg + ", " + valD + " [" + arg1.processed + "]";
     code += setReg("rbx", arg1, ctx);
     code += "mov " + valD + "[rax], " + valReg;
+
     return code.toString();
 }
 
@@ -674,5 +673,110 @@ std::string addr(InstContext& ctx) {
     code += "mov qword [" + arg2.processed + "], rax";
     return code.toString();
 }
+
+void validateName(const std::string& name, InstContext& ctx) {
+    if (name.empty())
+        ctx.throwErr("Names cannot be empty");
+
+    if (ctx.pdata.decls.contains(name) || ctx.pdata.scopes.contains(name))
+        ctx.throwErr("Name is already taken");
+
+    for (const auto& f : ctx.pdata.functions) {
+        if (f.name == name) {
+            ctx.throwErr("Name \"" + name + "\" is already taken");
+        }
+    }
+
+    for (char c : name) {
+        if (!(((c >= 97) && (c <= 122)) || ((c >= 65) && (c <= 90)) || ((c >= 48) && (c <= 57)) ||
+              (c == '_'))) {
+            ctx.throwErr("Names can only contain English letters, numbers, and underscores");
+        }
+    }
+
+    if (((name[0] >= 48) && (name[0] <= 57))) {
+        ctx.throwErr("Names cannot start with a number");
+    }
+
+    if (name == "true" || name == "false" || name == "null") {
+        ctx.throwErr(name + " is a reserved keyword");
+    }
+}
+
+std::string var(InstContext& ctx) {
+    BSLVar v;
+    assertCount(ctx, 3);
+    validateName(ctx.instArgs[0], ctx);
+    v.name = ctx.instArgs[0];
+    v.scopeDepth = ctx.depth;
+    v.type.name = ctx.instArgs[1];
+    const std::vector<std::string> validTypes = {"i8", "i16", "i32", "i64",
+                                                 "u8", "u16", "u32", "u64"};
+    bool validType = false;
+    for (const auto& t : validTypes) {
+        if (ctx.instArgs[1] == t)
+            validType = true;
+    }
+    if (!validType) {
+        ctx.throwErr("Invalid variable type");
+    }
+    v.type.signd = (ctx.instArgs[1][0] == 'i');
+    v.type.bits = std::stoi(ctx.instArgs[1].substr(1));
+    ctx.vars.create(v);
+
+    auto varVal = processArg(2, ATOMS_ALW | DECLS_ALW, ctx);
+    std::string valReg = pickReg(v.type.bits, "rbx", ctx);
+    CodeLines code(ctx);
+    code += setReg(valReg, varVal, ctx);
+    code += "sub rsp, " + std::to_string(v.type.bits / 8);
+    code += "mov " + bitsToD(v.type.bits) + "[rsp], " + valReg;
+    return code.toString();
+}
+
+void VarStack::create(BSLVar v) {
+    if (_varMap.contains(v.name))
+        _throwErr("Variable \"" + v.name + "\" already exists");
+    if (_varStack.empty()) {
+        v.stackOffset = 0;
+    } else {
+        auto& top = _varMap[_varStack.top()];
+        v.stackOffset = top.stackOffset + (top.type.bits / 8);
+    }
+    _varMap[v.name] = v;
+    _varStack.push(v.name);
+}
+
+const BSLVar& VarStack::operator[](const std::string& key) {
+    auto it = _varMap.find(key);
+    if (it == _varMap.end())
+        _throwErr("Variable \"" + key + "\" doesn't exist");
+    return it->second;
+}
+
+std::optional<const BSLVar*> VarStack::get(const std::string& key) {
+    auto it = _varMap.find(key);
+    if (it == _varMap.end())
+        return std::nullopt;
+    return &(it->second);
+}
+
+std::vector<BSLVar> VarStack::clearToDepth(size_t newDepth) {
+    std::vector<BSLVar> v;
+    while (!_varStack.empty()) {
+        auto& top = _varMap[_varStack.top()];
+        if (top.scopeDepth <= newDepth)
+            break;
+        v.push_back(top);
+        _varMap.erase(_varStack.top());
+        _varStack.pop();
+    }
+    return v;
+}
+
+void VarStack::_throwErr(const std::string& reason) {
+    throw CodeError(reason, _filename, _lineNum);
+}
+
+BSLVar::BSLVar(const std::string& n, DataType t, size_t d) : name(n), type(t), scopeDepth(d) {}
 
 }  // namespace bsl
