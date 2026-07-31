@@ -138,6 +138,14 @@ ParsedValue _processArg(const std::string& arg, uint8_t typeMask, InstContext& c
         if (it != ctx.pdata.decls.end()) {
             return {"d_" + arg, DECL};
         }
+        std::cout << "Searching for var" << std::endl;
+        auto stackVar = ctx.vars.get(arg);
+        if (stackVar.has_value()) {
+            std::cout << "Found var" << std::endl;
+            auto offt = (stackVar.value())->stackOffset;
+            std::cout << "Stack offset - " << offt << std::endl;
+            return {"rbp+" + std::to_string(offt), DECL};
+        }
     }
     if (typeMask & (1 << 2)) {
         auto it = ctx.pdata.scopes.find("p_" + arg);
@@ -220,14 +228,19 @@ ParsedValue processArgStr(const std::string& arg, uint8_t typeMask, InstContext&
         }
 
     } else if (parsed.kind == DECL) {
-        auto decl = (*(ctx.pdata.decls.find(parsed.processed))).second;
-        parsed.type.signd = (decl.type[0] == 'i');
-        try {
-            parsed.type.bits = std::stoi(decl.type.substr(1));
-        } catch (const std::invalid_argument&) {
-            ctx.throwErr("Compiler bug - can't extract bits out of type");
+        if (parsed.processed[0] == 'd') {  // section .data
+            auto dname = ctx.pdata.decls.find(parsed.processed);
+            auto decl = (*(dname)).second;
+            parsed.type.signd = (decl.type[0] == 'i');
+            try {
+                parsed.type.bits = std::stoi(decl.type.substr(1));
+            } catch (const std::invalid_argument&) {
+                ctx.throwErr("Compiler bug - can't extract bits out of type");
+            }
+            parsed.type.name = decl.type;
+        } else {  // stack
         }
-        parsed.type.name = decl.type;
+        parsed.type = ctx.vars[arg].type;
 
     }  // no signed-ness or bit size in procedures
 
@@ -458,10 +471,9 @@ std::string brk(InstContext& ctx) {
     code += "jmp " + ex;
     return code.toString();
 }
-std::string ret(InstContext& ctx) {
-    size_t totalClear = ctx.vars.calculateSizeBytes(0);  // kill (non-global) ALL vars
-    return std::string("add rsp, " + std::to_string(totalClear) + "\n") + "  ret";
-}
+
+// returns the old stack frame
+std::string ret(InstContext& ctx) { return "  mov rsp, rbp\n  pop rbp\n  ret"; }
 
 std::string div(InstContext& ctx) {
     assertCount(ctx, 2);
