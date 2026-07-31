@@ -38,7 +38,7 @@ struct BSLVar {
 
 struct VarStack {
     std::map<std::string, BSLVar> _varMap;
-    std::stack<std::string> _varStack;
+    std::deque<BSLVar*> _varStack;
     std::string _filename;
     size_t _lineNum;
 
@@ -50,6 +50,8 @@ struct VarStack {
 
     std::vector<BSLVar> clearToDepth(size_t newDepth);
 
+    size_t calculateSizeBytes(size_t depthDownTo);
+
     void _throwErr(const std::string& reason);
 };
 
@@ -60,6 +62,7 @@ struct InstContext {
     size_t lineNumber;
     const std::string& filename;
     const std::string& scopeName;
+    const std::string& loopName;
     VarStack& vars;
 
     std::string indent = "  ";
@@ -69,7 +72,7 @@ struct InstContext {
     explicit InstContext(const std::vector<std::string>& instArgs,
                          std::optional<std::string> attachedScope, size_t depth, size_t lineNum,
                          const std::string& filename, const std::string& scopeName,
-                         ProgramData& pdata, VarStack& vars);
+                         ProgramData& pdata, VarStack& vars, const std::string& loopName);
 
     void throwErr(const std::string& reason);
 };

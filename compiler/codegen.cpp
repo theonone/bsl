@@ -89,8 +89,9 @@ void X86_64Translator::_makeLabel(const Scope* scope, const Scope* next) {
 
 std::string X86_64Translator::_translateInstruction(const Instruction& inst) {
     _variables._lineNum = inst.lineNumber;
-    InstContext ctx = InstContext(inst.args, inst.attachedScope, inst.depth, inst.lineNumber, _src,
-                                  inst.scope, _pdata, _variables);
+    InstContext ctx =
+        InstContext(inst.args, inst.attachedScope, inst.depth, inst.lineNumber, _src, inst.scope,
+                    _pdata, _variables, _pdata.scopes[inst.scope].loopName);
     std::string translation;
     std::cout << inst.inst << std::endl;
     if (inst.inst == "add") {
@@ -279,6 +280,49 @@ void X86_64Translator::_processStrings() {
         }
     }
 }
+void printScope(Scope& s) {
+    std::cout << "\n\nScope " << s.name << ", depth=" << s.depth << ", loop=" << s.loopName
+              << ", parent=" << ((s.parent == nullptr) ? "" : s.parent->name) << std::endl;
+    for (auto& inst : s.instructions) {
+        std::cout << inst.lineNumber << "| " << inst.inst << " ";
+        for (auto& arg : inst.args) {
+            std::cout << arg << ", ";
+        }
+        if (inst.attachedScope.has_value()) {
+            std::cout << " -> " << inst.attachedScope.value();
+        }
+        std::cout << std::endl;
+    }
+}
+
+void printFunc(Func& f) {
+    std::cout << "Func " << f.name << "(";
+    for (auto& arg : f.args) {
+        std::cout << arg.name << ": " << arg.type << ", ";
+    }
+    std::cout << ") -> " << (f.returnType ? f.returnType.value() : "void") << std::endl;
+}
+
+void printPdata(ProgramData& pdata) {
+    for (auto& d : pdata.decls) {
+        std::cout << "Declaration " << d.second.type << " " << d.second.name << " = "
+                  << d.second.value << std::endl;
+    }
+
+    std::cout << "Total scopes - " << pdata.scopes.size() << std::endl;
+    std::cout << "Scope order: " << std::endl;
+    for (auto& p : pdata.order) {
+        std::cout << p->name << ", ";
+    }
+    std::cout << std::endl;
+    for (auto& p : pdata.order) {
+        printScope(*p);
+    }
+    std::cout << "\nFunctions:" << std::endl;
+    for (auto& f : pdata.functions) {
+        printFunc(f);
+    }
+}
 
 X86_64Translator::X86_64Translator(const ProgramData& pdata, const std::string& srcFilename)
     : _pdata(pdata), _src(srcFilename) {}
@@ -287,8 +331,37 @@ std::string X86_64Translator::translate() {
     if (_translated)
         return _asm;
 
-    //_preprocessIfs();
-    //_preprocessLoops();
+    // create closing scopes for all
+    for (size_t i = 1; i < _pdata.order.size(); ++i) {
+        Scope* last = _pdata.order[i - 1];
+        Scope* curr = _pdata.order[i];
+        std::cout << last->name << std::endl;
+
+        if ((last->depth > curr->depth + 1) || (curr->name[0] != 'L' && last->depth != 1)) {
+            // create an empty scope between
+            Scope between;
+            size_t auxNum;
+
+            auto und = last->name.find('_');
+            if (und != std::string::npos) {
+                auxNum = std::stoi(last->name.substr(und + 1)) + 1;
+                between.name = last->name.substr(0, und) + "_" + std::to_string(auxNum);
+
+            } else {
+                between.name = last->name + "_1";
+                auxNum = 1;
+            }
+
+            between.depth = last->depth - 1;
+            between.loopName =
+                _pdata.order[i - auxNum * 2]->loopName;  // TODO: double-check, might be problematic
+            _pdata.scopes[between.name] = between;
+            _pdata.order.insert(_pdata.order.begin() + i, &_pdata.scopes[between.name]);
+        }
+        std::cout << last->name << std::endl;
+    }
+
+    printPdata(_pdata);
 
     _processStrings();
     _makeSecData();

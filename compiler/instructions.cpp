@@ -48,7 +48,7 @@ std::string& CodeLines::operator[](size_t index) {
 InstContext::InstContext(const std::vector<std::string>& instArgs,
                          std::optional<std::string> attachedScope, size_t depth, size_t lineNum,
                          const std::string& filename, const std::string& scopeName,
-                         ProgramData& pdata, VarStack& vars)
+                         ProgramData& pdata, VarStack& vars, const std::string& loopName)
     : instArgs(instArgs),
       attachedScope(attachedScope),
       depth(depth),
@@ -56,7 +56,8 @@ InstContext::InstContext(const std::vector<std::string>& instArgs,
       filename(filename),
       scopeName(scopeName),
       pdata(pdata),
-      vars(vars) {}
+      vars(vars),
+      loopName(loopName) {}
 
 void InstContext::throwErr(const std::string& reason) {
     throw CodeError(reason, filename, lineNumber);
@@ -443,17 +444,24 @@ std::string loopExit(const std::string& loopName, InstContext& ctx) {
     return "glb";
 }
 
-// TODO: pass loop name normally
 std::string brk(InstContext& ctx) {
     assertCount(ctx, 0);
-    auto ex = loopExit(ctx.pdata.scopes.find(ctx.scopeName)->second.loopName, ctx);
+    auto ex = loopExit(ctx.loopName, ctx);
     if (ex == "glb") {
-        return ctx.indent + "ret";
+        ctx.throwErr("Compiler bug: no closing scope for break");
+        // return ctx.indent + "ret";
     }
 
-    return ctx.indent + "jmp " + ex;
+    auto size = ctx.vars.calculateSizeBytes(ctx.pdata.scopes[ctx.loopName].depth);
+    CodeLines code(ctx);
+    code += "add rsp, " + std::to_string(size);  // kill all vars of the loop and its child scopes
+    code += "jmp " + ex;
+    return code.toString();
 }
-std::string ret(InstContext& ctx) { return "  ret"; }
+std::string ret(InstContext& ctx) {
+    size_t totalClear = ctx.vars.calculateSizeBytes(0);  // kill (non-global) ALL vars
+    return std::string("add rsp, " + std::to_string(totalClear) + "\n") + "  ret";
+}
 
 std::string div(InstContext& ctx) {
     assertCount(ctx, 2);
@@ -565,12 +573,15 @@ std::string lt(InstContext& ctx) {
 
 std::string cont(InstContext& ctx) {
     assertCount(ctx, 0);
-    auto loop = ctx.pdata.scopes.find(ctx.scopeName)->second.loopName;
-    if (loop == "") {
+    if (ctx.loopName == "") {
         ctx.throwErr("Cannot continue - not in a loop");
     }
 
-    return ctx.indent + "jmp " + loop;
+    auto size = ctx.vars.calculateSizeBytes(ctx.pdata.scopes[ctx.loopName].depth);
+    CodeLines code(ctx);
+    code += "add rsp, " + std::to_string(size);  // kill all vars of the loop and its child scopes
+    code += "jmp " + ctx.loopName;
+    return code.toString();
 }
 
 std::string shr(InstContext& ctx) {
@@ -739,11 +750,11 @@ void VarStack::create(BSLVar v) {
     if (_varStack.empty()) {
         v.stackOffset = 0;
     } else {
-        auto& top = _varMap[_varStack.top()];
-        v.stackOffset = top.stackOffset + (top.type.bits / 8);
+        auto* top = _varStack.front();
+        v.stackOffset = top->stackOffset + (top->type.bits / 8);
     }
     _varMap[v.name] = v;
-    _varStack.push(v.name);
+    _varStack.push_front(&_varMap[v.name]);
 }
 
 const BSLVar& VarStack::operator[](const std::string& key) {
@@ -763,14 +774,24 @@ std::optional<const BSLVar*> VarStack::get(const std::string& key) {
 std::vector<BSLVar> VarStack::clearToDepth(size_t newDepth) {
     std::vector<BSLVar> v;
     while (!_varStack.empty()) {
-        auto& top = _varMap[_varStack.top()];
-        if (top.scopeDepth <= newDepth)
+        auto* top = _varStack.front();
+        if (top->scopeDepth <= newDepth)
             break;
-        v.push_back(top);
-        _varMap.erase(_varStack.top());
-        _varStack.pop();
+        v.push_back(*top);
+        _varMap.erase(_varStack.front()->name);
+        _varStack.pop_front();
     }
     return v;
+}
+
+size_t VarStack::calculateSizeBytes(size_t depthDownTo) {
+    size_t total = 0;
+    for (auto it = _varStack.begin(); it != _varStack.end(); ++it) {
+        if ((*it)->scopeDepth < depthDownTo)
+            break;
+        total += (*it)->type.bits / 8;
+    }
+    return total;
 }
 
 void VarStack::_throwErr(const std::string& reason) {
