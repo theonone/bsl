@@ -138,7 +138,7 @@ ParsedValue _processArg(const std::string& arg, uint8_t typeMask, InstContext& c
         if (it != ctx.pdata.decls.end()) {
             return {"d_" + arg, DECL};
         }
-        std::cout << "Searching for var" << std::endl;
+        std::cout << "Searching for var " + arg << std::endl;
         auto stackVar = ctx.vars.get(arg);
         if (stackVar.has_value()) {
             std::cout << "Found var" << std::endl;
@@ -159,7 +159,7 @@ ParsedValue _processArg(const std::string& arg, uint8_t typeMask, InstContext& c
         types.push_back("atom");
     }
     if (2 & typeMask) {
-        types.push_back("declaration name");
+        types.push_back("variable/declaration name");
     }
     if (4 & typeMask) {
         types.push_back("procedure name");
@@ -239,8 +239,8 @@ ParsedValue processArgStr(const std::string& arg, uint8_t typeMask, InstContext&
             }
             parsed.type.name = decl.type;
         } else {  // stack
+            parsed.type = ctx.vars[arg].type;
         }
-        parsed.type = ctx.vars[arg].type;
 
     }  // no signed-ness or bit size in procedures
 
@@ -467,7 +467,10 @@ std::string brk(InstContext& ctx) {
 
     auto size = ctx.vars.calculateSizeBytes(ctx.pdata.scopes[ctx.loopName].depth);
     CodeLines code(ctx);
-    code += "add rsp, " + std::to_string(size);  // kill all vars of the loop and its child scopes
+    if (size > 0) {
+        code +=
+            "add rsp, " + std::to_string(size);  // kill all vars of the loop and its child scopes
+    }
     code += "jmp " + ex;
     return code.toString();
 }

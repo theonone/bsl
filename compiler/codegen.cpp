@@ -83,7 +83,9 @@ void X86_64Translator::_makeLabel(const Scope* scope, const Scope* next) {
         label += "mov rsp, rbp";
         label += "pop rbp";
     }
-    label += _resolveEnding(label, scope);
+    auto ending = _resolveEnding(label, scope);
+    std::cout << scope->name << " - " << ending << std::endl;
+    label += ending;
     _secText += label.toString();
 }
 
@@ -93,7 +95,6 @@ std::string X86_64Translator::_translateInstruction(const Instruction& inst) {
         InstContext(inst.args, inst.attachedScope, inst.depth, inst.lineNumber, _src, inst.scope,
                     _pdata, _variables, _pdata.scopes[inst.scope].loopName);
     std::string translation;
-    std::cout << inst.inst << std::endl;
     if (inst.inst == "add") {
         translation = bsl::add(ctx);
     } else if (inst.inst == "sub") {
@@ -183,6 +184,7 @@ std::string X86_64Translator::_resolveEnding(CodeLines& label, const Scope* sc) 
         return "";
     }
     std::string lower = _findLowerScope(sc->name);
+    std::cout << "lower scope " << lower << std::endl;
     if ((sc->loopName != "" && _lastScopeOfLoop(sc->loopName) == sc->name)) {
         return "jmp " + sc->loopName;
     } else {
@@ -206,9 +208,12 @@ std::string X86_64Translator::_findLowerScope(const std::string& from) {
         }
         if (fromIndex == -1)
             continue;
-        if ((sc->depth <= _pdata.order[fromIndex]->depth) && (!startswith(sc->name, "p_")) &&
-            (!startswith(sc->name, "f_")))
+        if ((sc->depth <= _pdata.order[fromIndex]->depth)) {
+            if ((startswith(sc->name, "p_")) || (startswith(sc->name, "f_"))) {
+                return "glb";
+            }
             return sc->name;
+        }
     }
     if (fromIndex == -1)
         throw std::runtime_error("Compiler bug: no scope named " + from);
@@ -335,7 +340,6 @@ std::string X86_64Translator::translate() {
     for (size_t i = 1; i < _pdata.order.size(); ++i) {
         Scope* last = _pdata.order[i - 1];
         Scope* curr = _pdata.order[i];
-        std::cout << last->name << std::endl;
 
         if ((last->depth > curr->depth + 1) || (curr->name[0] != 'L' && last->depth != 1)) {
             // create an empty scope between
@@ -358,7 +362,6 @@ std::string X86_64Translator::translate() {
             _pdata.scopes[between.name] = between;
             _pdata.order.insert(_pdata.order.begin() + i, &_pdata.scopes[between.name]);
         }
-        std::cout << last->name << std::endl;
     }
 
     printPdata(_pdata);
