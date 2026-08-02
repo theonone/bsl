@@ -138,13 +138,10 @@ ParsedValue _processArg(const std::string& arg, uint8_t typeMask, InstContext& c
         if (it != ctx.pdata.decls.end()) {
             return {"d_" + arg, DECL};
         }
-        std::cout << "Searching for var " + arg << std::endl;
         auto stackVar = ctx.vars.get(arg);
         if (stackVar.has_value()) {
-            std::cout << "Found var" << std::endl;
-            auto offt = (stackVar.value())->stackOffset;
-            std::cout << "Stack offset - " << offt << std::endl;
-            return {"rbp+" + std::to_string(offt), DECL};
+            auto offt = (stackVar.value())->stackOffset + (stackVar.value())->type.bits / 8;
+            return {"rbp-" + std::to_string(offt), DECL};
         }
     }
     if (typeMask & (1 << 2)) {
@@ -311,13 +308,19 @@ void assertCount(InstContext& ctx, int count) {
     }
 }
 
+std::string dereference(ParsedValue& val, InstContext& ctx) {
+    if (val.kind != DECL)
+        ctx.throwErr("Compiler bug: cannot dereference if it's not a decl or var");
+    return bitsToD(val.type.bits) + " [" + val.processed + "]\n";
+}
+
 std::string setReg(const std::string& reg, ParsedValue& val, InstContext& ctx) {
     if (val.kind == DECL) {
         std::string inst = "mov ";
         if ((val.type.bits) < 64) {
             inst = (val.type.signd ? "movsx " : "movzx ");
         }
-        return inst + reg + ", " + bitsToD(val.type.bits) + " [" + val.processed + "]\n";
+        return inst + reg + ", " + dereference(val, ctx);
     } else {
         return "mov " + reg + ", " + val.processed + "\n";
     }
@@ -756,6 +759,26 @@ std::string var(InstContext& ctx) {
     code += setReg(valReg, varVal, ctx);
     code += "sub rsp, " + std::to_string(v.type.bits / 8);
     code += "mov " + bitsToD(v.type.bits) + "[rsp], " + valReg;
+    return code.toString();
+}
+
+std::string pass(InstContext& ctx) {
+    assertCount(ctx, 0);
+    return "";
+}
+
+std::string inc(InstContext& ctx) {
+    assertCount(ctx, 1);
+    auto arg1 = processArg(0, DECLS_ALW, ctx);
+    CodeLines code(ctx);
+    code += "inc " + dereference(arg1, ctx);
+    return code.toString();
+}
+std::string dec(InstContext& ctx) {
+    assertCount(ctx, 1);
+    auto arg1 = processArg(0, DECLS_ALW, ctx);
+    CodeLines code(ctx);
+    code += "dec " + dereference(arg1, ctx);
     return code.toString();
 }
 

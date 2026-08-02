@@ -131,5 +131,8 @@ std::string load(InstContext& ctx);
 std::string store(InstContext& ctx);
 std::string addr(InstContext& ctx);
 std::string var(InstContext& ctx);
+std::string pass(InstContext& ctx);
+std::string inc(InstContext& ctx);
+std::string dec(InstContext& ctx);
 
 }  // namespace bsl

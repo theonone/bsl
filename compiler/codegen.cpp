@@ -84,7 +84,6 @@ void X86_64Translator::_makeLabel(const Scope* scope, const Scope* next) {
         label += "pop rbp";
     }
     auto ending = _resolveEnding(label, scope);
-    std::cout << scope->name << " - " << ending << std::endl;
     label += ending;
     _secText += label.toString();
 }
@@ -155,6 +154,12 @@ std::string X86_64Translator::_translateInstruction(const Instruction& inst) {
         translation = bsl::store(ctx);
     } else if (inst.inst == "var") {
         translation = bsl::var(ctx);
+    } else if (inst.inst == "pass") {
+        translation = bsl::pass(ctx);
+    } else if (inst.inst == "inc") {
+        translation = bsl::inc(ctx);
+    } else if (inst.inst == "dec") {
+        translation = bsl::dec(ctx);
     } else {
         ctx.throwErr("Unrecognized instruction - " + inst.inst);
     }
@@ -184,7 +189,6 @@ std::string X86_64Translator::_resolveEnding(CodeLines& label, const Scope* sc) 
         return "";
     }
     std::string lower = _findLowerScope(sc->name);
-    std::cout << "lower scope " << lower << std::endl;
     if ((sc->loopName != "" && _lastScopeOfLoop(sc->loopName) == sc->name)) {
         return "jmp " + sc->loopName;
     } else {
@@ -363,8 +367,6 @@ std::string X86_64Translator::translate() {
             _pdata.order.insert(_pdata.order.begin() + i, &_pdata.scopes[between.name]);
         }
     }
-
-    printPdata(_pdata);
 
     _processStrings();
     _makeSecData();

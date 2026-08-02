@@ -5,6 +5,7 @@
 #include "compiler/compiler.hpp"
 #include "compiler/errors.hpp"
 #include "compiler/fileIO.hpp"
+#include "compiler/optimizer.hpp"
 #include "compiler/preprocessor.hpp"
 #include "compiler/stringTools.hpp"
 
@@ -28,6 +29,7 @@ int main(int argc, char** argv) {
     std::string arch = "x86_64";
     std::string assembler = "nasm";
     std::string linker = "ld";
+    int aggr = 1;
 
     if (args[0] == "--help") {
         std::cout
@@ -39,7 +41,9 @@ int main(int argc, char** argv) {
                "indentation unit to X spaces\n-os={os} - specify target operating system "
                "(linux/mac/win default: "
                "linux)\n"
-               "-arch={arch} - specify target architecture (x86_64/x86/arm32/arm64 default: x86_64)"
+               "-arch={arch} - specify target architecture (x86_64/x86/arm32/arm64 default: "
+               "x86_64)\n"
+               "-O={number} - set optimization aggressiveness to {number} (default: 1)"
             << std::endl;
         return 0;
     }
@@ -77,6 +81,20 @@ int main(int argc, char** argv) {
                 return 0;
             }
             outIndex = ++i;
+        } else if (bsl::startswith(args[i], "-O=")) {
+            if (args[i].size() < 4) {
+                std::cout << "Invalid options: optimization level not specified" << std::endl;
+                return 0;
+            }
+            try {
+                aggr = std::stoi(args[i].substr(3));
+                if (aggr < 0)
+                    throw std::invalid_argument("");
+            } catch (const std::invalid_argument&) {
+                std::cout << "Invalid options: invalid optimization level" << std::endl;
+                return 0;
+            }
+
         } else if (args[i] == "-notabs") {
             tabs = false;
 
@@ -154,7 +172,7 @@ int main(int argc, char** argv) {
     }
     std::string compiled;
     try {
-        compiled = bsl::compile(args[0], preprocessor.getLines(), indent, tabs, os, arch);
+        compiled = bsl::compile(args[0], preprocessor.getLines(), indent, tabs, os, arch, aggr);
     } catch (const bsl::CodeError& err) {
         std::cout << "Compilation failed!\n" << err.what() << std::endl;
         return 0;

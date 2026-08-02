@@ -32,3 +32,5 @@ proc main:
     call fib
     asg next, print_u64_arg
     call print_u64
+    asg '\n', print_char_arg
+    call print_char

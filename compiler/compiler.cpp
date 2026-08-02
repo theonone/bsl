@@ -8,9 +8,11 @@
 namespace bsl {
 
 std::string compile(const std::string& in, std::vector<std::string>& lines, size_t indent,
-                    bool allowTabs, const std::string& os, const std::string& arch) {
+                    bool allowTabs, const std::string& os, const std::string& arch, int aggr) {
     auto parser = BSLParser(in, lines, indent, allowTabs);
     auto prog = parser.parse();
+    CodeOptimizer opt(prog, aggr);
+    opt.optimize();
     if (arch != "x86_64" || os != "linux") {
         throw std::runtime_error("Sorry, currently the compiler can only compile for x86_64 Linux");
     }
