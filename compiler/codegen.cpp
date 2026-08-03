@@ -74,14 +74,13 @@ void X86_64Translator::_makeLabel(const Scope* scope, const Scope* next) {
             freed += v.type.bits / 8;
         }
         if (freed > 0) {
-            label += "add rsp, " +
-                     std::to_string(
-                         freed);  // TODO: have a second look. can size be different from 8 bytes?
+            label += "add rsp, " + std::to_string(freed);
         }
     }
     if (funcEnd) {
         label += "mov rsp, rbp";
         label += "pop rbp";
+        _variables.clearToDepth(0);
     }
     auto ending = _resolveEnding(label, scope);
     label += ending;
@@ -385,6 +384,7 @@ std::string X86_64Translator::translate() {
         _asm += "  lea rax, qword[" + p.second + "]\n  mov qword[" + p.first + "], rax\n";
     }
     _asm +=
+        "  sub rsp, 8\n"  // initial stack alignment
         "  call p_main\n"
         "  mov rax, 60\n"
         "  xor rdi, rdi\n"

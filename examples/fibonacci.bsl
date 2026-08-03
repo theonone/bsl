@@ -2,22 +2,30 @@ import <stdlib>
 
 // a program to calculate the Nth number of the Fibonacci sequence
 
-decl n, u64, 12 // input
+var n, u64, 12 // input
+decl fib_ret, u64, 0
 
-decl cond, u8, false
-decl a, u64, 0
-decl b, u64, 1
-decl next, u64, 0
-decl i, u64, 2
+proc empty:
+    ret
 
 proc fib:
+    var cond, u8, 0
+
     lte n, 1, cond // cond = (n ≤ 1)
     if cond:
-        asg n, next
+        asg n, fib_ret
         ret
     
+
+    var a, u64, 0
+    var b, u64, 1
+    call empty 
+
+    var next, u64, 1
+
+    
     loop:
-        gt i, n, cond
+        gte 1, n, cond
         if cond:
             break
 
@@ -26,11 +34,13 @@ proc fib:
         asg b, a 
         asg next, b 
 
-        add 1, i
+        dec n
+    asg next, fib_ret
 
 proc main:
+    var test, u16, 0
     call fib
-    asg next, print_u64_arg
+    asg fib_ret, print_u64_arg
     call print_u64
     asg '\n', print_char_arg
     call print_char

@@ -21,7 +21,7 @@ proc main:
         eq i, 1000000000, cond
         if cond:
             break
-        add 1, i
+        inc i
 
 
     var ns_end, u64, 0

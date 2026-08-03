@@ -377,7 +377,15 @@ std::string call(InstContext& ctx) {
     assertCount(ctx, 1);
     auto arg = processArg(0, PROCS_ALW, ctx);
     CodeLines code(ctx);
+    size_t stackSize = ctx.vars.calculateSizeBytes(0);
+    size_t padding = (stackSize % 16 == 0) ? 0 : (16 - stackSize % 16);
+    if (padding > 0) {
+        code += "sub rsp, " + std::to_string(padding);
+    }
     code += "call " + arg.processed;
+    if (padding > 0) {
+        code += "add rsp, " + std::to_string(padding);
+    }
     return code.toString();
 }
 std::string and_bin(InstContext& ctx) { return mutSecond(ctx, "and rbx, rax"); }
