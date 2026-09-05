@@ -1,9 +1,9 @@
 CXX := g++
 CXXFLAGS := -std=c++20 -O2 -Wall -Wextra
 LDFLAGS :=
-EXECUTABLE := ./testing/bslc
+EXECUTABLE := ./bslc
 
-OBJ_DIR := ./testing/objfiles
+OBJ_DIR := ./objfiles
 SRC_DIR := .
 
 
