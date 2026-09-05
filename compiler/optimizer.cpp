@@ -5,6 +5,12 @@
 
 #include "stringTools.hpp"
 
+// TODO:
+// mul 2^n, var -> shl n, var
+// div 2^n, var -> shr n, var
+// div 1, var & mul 1, var -> nothing
+// auto delete dead code
+//
 namespace bsl {
 void CodeOptimizer::_incDec() {
     for (auto ptr : _pdata.order) {

@@ -6,8 +6,7 @@ extern decl malloc_ret, u64, 0
 extern decl free_arg, u64, null
 extern decl time_ret, u64, 0
 extern decl err, u64, 0
-
-extern decl err, u64, 0
+extern decl get_char_ret, u8, 0
 
 extern proc print_u64
 extern proc print_char
@@ -15,5 +14,6 @@ extern proc print_char_ptr
 extern proc malloc
 extern proc free
 extern proc time
+extern proc get_char
 
 link <stdlib.o>

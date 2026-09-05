@@ -6,6 +6,7 @@ global p_print_char_ptr
 global p_malloc
 global p_free
 global p_time
+global p_get_char
 
 global d_print_u64_arg
 global d_print_char_arg
@@ -15,6 +16,7 @@ global d_malloc_ret
 global d_free_arg
 global d_time_ret
 global d_err
+global d_get_char_ret
 
 
 section .data
@@ -26,6 +28,7 @@ section .data
     d_free_arg dq 0
     d_time_ret dq 0
     d_err dq 0
+    d_get_char_ret db 0
 
     time_s_ns dq 0, 0
 
@@ -36,6 +39,7 @@ section .bss
 section .text
 extern malloc
 extern free
+extern getchar
 
 p_print_u64:
     mov rax, [d_print_u64_arg]
@@ -141,4 +145,9 @@ p_time:
 
 set_err:
     mov [d_err], 1
+    ret
+
+p_get_char:
+    call getchar
+    mov byte[d_get_char_ret], al
     ret
