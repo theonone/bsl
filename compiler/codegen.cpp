@@ -338,6 +338,7 @@ X86_64Translator::X86_64Translator(const ProgramData& pdata, const std::string& 
 std::string X86_64Translator::translate() {
     if (_translated)
         return _asm;
+    // printPdata(_pdata);
 
     // create closing scopes for all
     for (size_t i = 1; i < _pdata.order.size(); ++i) {
